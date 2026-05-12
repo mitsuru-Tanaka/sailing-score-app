@@ -1518,6 +1518,25 @@ def invite_user(
     return InviteResponse(message="招待メールを送信しました", email=body.email, role=body.role)
 
 
+@app.put("/admin/users/{user_id}/role")
+def update_user_role(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    """ユーザーの role を admin ↔ member 切り替え（管理者のみ）。自分自身は変更不可。"""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="自分自身の権限は変更できません")
+
+    target = db.query(User).filter(User.id == user_id).first()
+    if target is None:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
+
+    target.role = "member" if target.role == "admin" else "admin"
+    db.commit()
+    return {"id": target.id, "email": target.email, "role": target.role}
+
+
 @app.post("/admin/users/{user_id}/tournaments/{tournament_id}")
 def add_tournament_member(
     user_id: str,

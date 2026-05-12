@@ -246,7 +246,7 @@ export default function AdminPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
             <thead>
               <tr style={{ backgroundColor: NAV, color: WHITE }}>
-                {["メールアドレス", "権限", "ユーザーID"].map((h) => (
+                {["メールアドレス", "権限", "操作", "ユーザーID"].map((h) => (
                   <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontWeight: "600", fontSize: "13px" }}>
                     {h}
                   </th>
@@ -271,6 +271,28 @@ export default function AdminPage() {
                     }}>
                       {u.role}
                     </span>
+                  </td>
+                  <td style={{ padding: "11px 16px", borderBottom: `1px solid ${BORDER}` }}>
+                    {u.id !== me?.id && (
+                      <button
+                        onClick={async () => {
+                          const res = await apiFetch(`/admin/users/${u.id}/role`, { method: "PUT" });
+                          if (res.ok) await fetchAll();
+                        }}
+                        style={{
+                          padding: "4px 10px",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          border: `1px solid ${BORDER}`,
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          backgroundColor: WHITE,
+                          color: u.role === "admin" ? "#dc2626" : NAV,
+                        }}
+                      >
+                        {u.role === "admin" ? "member に変更" : "admin に昇格"}
+                      </button>
+                    )}
                   </td>
                   <td style={{ padding: "11px 16px", borderBottom: `1px solid ${BORDER}`, color: MUTED, fontSize: "12px", fontFamily: "monospace" }}>
                     {u.id.slice(0, 8)}…
