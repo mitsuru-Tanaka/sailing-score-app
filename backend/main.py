@@ -1007,11 +1007,31 @@ def add_tournament_editor(
     """メールアドレスで editor を追加（owner または admin のみ）"""
     check_tournament_access(tournament_id, current_user, db, owner_only=True)
 
+    # ローカル users テーブルを検索
     target = db.query(User).filter(User.email == body.email).first()
+
+    # ローカルに存在しない場合、Supabase auth を検索して自動登録
+    # （サインアップ済みだが未ログインのユーザーへの対応）
+    if target is None and AUTH_ENABLED:
+        try:
+            supabase = get_supabase()
+            resp = supabase.auth.admin.list_users()
+            users_list = resp if isinstance(resp, list) else getattr(resp, "users", [])
+            sb_user = next(
+                (u for u in users_list if (u.email or "").lower() == body.email.lower()),
+                None,
+            )
+            if sb_user:
+                target = User(id=sb_user.id, email=sb_user.email or body.email, role="member")
+                db.add(target)
+                db.flush()
+        except Exception as e:
+            print(f"[add_member] Supabase lookup error: {e}", flush=True)
+
     if target is None:
         raise HTTPException(
             status_code=404,
-            detail=f"{body.email} のユーザーが見つかりません（先にサインアップが必要です）",
+            detail=f"{body.email} のユーザーが見つかりません。先にサインアップしてください。",
         )
 
     existing = db.query(TournamentMember).filter(
