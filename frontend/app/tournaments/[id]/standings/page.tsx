@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE } from "@/lib/api";
+
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import TournamentNav from "../../../components/TournamentNav";
@@ -504,17 +506,17 @@ export default function StandingsPage() {
   const fetchData = useCallback(async () => {
     if (!id) return;
     try {
-      const tRes = await fetch(`http://127.0.0.1:8000/tournaments/${id}`);
+      const tRes = await fetch(`${API_BASE}/tournaments/${id}`);
       if (!tRes.ok) throw new Error("大会情報の取得に失敗しました");
       const t: Tournament = await tRes.json();
       setTournament(t);
 
       if (t.event_template === "TEAM_3_BOATS") {
-        const sRes = await fetch(`http://127.0.0.1:8000/tournaments/${id}/standings-v3`);
+        const sRes = await fetch(`${API_BASE}/tournaments/${id}/standings-v3`);
         if (!sRes.ok) throw new Error("順位の取得に失敗しました");
         setV3Response(await sRes.json());
       } else {
-        const sRes = await fetch(`http://127.0.0.1:8000/tournaments/${id}/standings-v2`);
+        const sRes = await fetch(`${API_BASE}/tournaments/${id}/standings-v2`);
         if (!sRes.ok) throw new Error("順位の取得に失敗しました");
         setV2Response(await sRes.json());
       }
@@ -591,7 +593,7 @@ export default function StandingsPage() {
             🖨️ 印刷
           </button>
           <a
-            href={`http://127.0.0.1:8000/tournaments/${id}/export/excel`}
+            href={`${API_BASE}/tournaments/${id}/export/excel`}
             style={{
               display: "inline-block",
               padding: "9px 18px",

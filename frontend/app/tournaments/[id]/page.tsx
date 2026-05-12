@@ -1,3 +1,5 @@
+import { API_BASE } from "@/lib/api";
+
 import Link from "next/link";
 import TournamentNav from "../../components/TournamentNav";
 
@@ -15,7 +17,7 @@ type Tournament = {
 };
 
 async function getTournament(id: string): Promise<Tournament> {
-  const res = await fetch(`http://127.0.0.1:8000/tournaments/${id}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/tournaments/${id}`, { cache: "no-store" });
   if (!res.ok) throw new Error("大会情報の取得に失敗しました");
   return res.json();
 }

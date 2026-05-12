@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE } from "@/lib/api";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -96,7 +98,7 @@ export default function Home() {
   async function fetchTournaments() {
     try {
       setLoading(true);
-      const res = await fetch("http://127.0.0.1:8000/tournaments");
+      const res = await fetch(`${API_BASE}/tournaments`);
       if (!res.ok) throw new Error();
       setTournaments(await res.json());
     } catch {
@@ -122,7 +124,7 @@ export default function Home() {
     if (!name.trim()) { setError("大会名は必須です"); return; }
     setSubmitting(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/tournaments", {
+      const res = await fetch(`${API_BASE}/tournaments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

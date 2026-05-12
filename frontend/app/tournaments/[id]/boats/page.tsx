@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE } from "@/lib/api";
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import TournamentNav from "../../../components/TournamentNav";
@@ -67,7 +69,7 @@ export default function BoatsPage() {
 
   async function fetchTournament() {
     if (!tournamentId) return;
-    const res = await fetch(`http://127.0.0.1:8000/tournaments/${tournamentId}`);
+    const res = await fetch(`${API_BASE}/tournaments/${tournamentId}`);
     if (!res.ok) { setError("大会情報の取得に失敗しました"); return; }
     const data = await res.json();
     setTournament(data);
@@ -76,7 +78,7 @@ export default function BoatsPage() {
 
   async function fetchBoats() {
     if (!tournamentId) return;
-    const res = await fetch(`http://127.0.0.1:8000/tournaments/${tournamentId}/boats`);
+    const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/boats`);
     if (!res.ok) { setError("艇一覧の取得に失敗しました"); return; }
     setBoats(await res.json());
   }
@@ -100,7 +102,7 @@ export default function BoatsPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/tournaments/${tournamentId}/boats`, {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/boats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE } from "@/lib/api";
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import TournamentNav from "../../../components/TournamentNav";
@@ -89,8 +91,8 @@ export default function RulesPage() {
   useEffect(() => {
     async function load() {
       const [tRes, rRes] = await Promise.all([
-        fetch(`http://127.0.0.1:8000/tournaments/${tournamentId}`),
-        fetch(`http://127.0.0.1:8000/tournaments/${tournamentId}/rules`),
+        fetch(`${API_BASE}/tournaments/${tournamentId}`),
+        fetch(`${API_BASE}/tournaments/${tournamentId}/rules`),
       ]);
       if (tRes.ok) {
         const t = await tRes.json();
@@ -121,7 +123,7 @@ export default function RulesPage() {
     e.preventDefault();
     setMessage(""); setError(""); setSaving(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/tournaments/${tournamentId}/rules`, {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/rules`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

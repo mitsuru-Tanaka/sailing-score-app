@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE } from "@/lib/api";
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import TournamentNav from "../../../../components/TournamentNav";
@@ -82,10 +84,10 @@ export default function RaceResultPage() {
       setLoading(true);
       setError("");
       const [tournamentRes, racesRes, boatsRes, resultsRes] = await Promise.all([
-        fetch(`http://127.0.0.1:8000/tournaments/${tournamentId}`),
-        fetch(`http://127.0.0.1:8000/tournaments/${tournamentId}/races`),
-        fetch(`http://127.0.0.1:8000/tournaments/${tournamentId}/boats`),
-        fetch(`http://127.0.0.1:8000/races/${raceId}/results`),
+        fetch(`${API_BASE}/tournaments/${tournamentId}`),
+        fetch(`${API_BASE}/tournaments/${tournamentId}/races`),
+        fetch(`${API_BASE}/tournaments/${tournamentId}/boats`),
+        fetch(`${API_BASE}/races/${raceId}/results`),
       ]);
       if (!tournamentRes.ok) throw new Error("大会情報の取得に失敗しました");
       if (!racesRes.ok)      throw new Error("レース一覧の取得に失敗しました");
@@ -141,7 +143,7 @@ export default function RaceResultPage() {
         result_code: row.result_code,
         note: row.note || null,
       }));
-      const res = await fetch(`http://127.0.0.1:8000/races/${raceId}/results`, {
+      const res = await fetch(`${API_BASE}/races/${raceId}/results`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
