@@ -8,7 +8,14 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:////tmp/sailing.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+else:
+    # Supabase / Render PostgreSQL は SSL 必須。URL に sslmode がなければ追加する
+    if "sslmode" not in DATABASE_URL:
+        sep = "&" if "?" in DATABASE_URL else "?"
+        DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
+    connect_args = {"sslmode": "require"}
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
