@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# 仮想環境
+venv/
+backend/venv/
+.venv/
+
+# 環境変数
+.env
+.env.*
+
+# SQLite データベース
+*.db
+*.sqlite3
+
+# FastAPI / uvicorn
+*.log
+
+# Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+# テスト・一時ファイル
+test_*.py
+tests/
+frontend_broken/
+新しい仮想環境を作成
+claude_code_handover_*.md
+#
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Claude Code
+.claude/
+
+# その他不要ファイル
+\#
