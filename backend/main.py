@@ -52,7 +52,7 @@ app.add_middleware(
     allow_origins=allow_origins_list,
     allow_credentials=allow_origins_list != ["*"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 def get_entries_count(tournament_id: int, db: Session) -> int:

@@ -1,6 +1,6 @@
 "use client";
 
-import { API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -93,9 +93,8 @@ export default function RacesPage() {
     if (!raceNumber) { setError("レース番号は必須です"); return; }
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/races`, {
+      const res = await apiFetch(`/tournaments/${tournamentId}/races`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ race_number: Number(raceNumber), name: raceName || null, status: "DRAFT" }),
       });
       if (!res.ok) { setError("レース追加に失敗しました"); return; }

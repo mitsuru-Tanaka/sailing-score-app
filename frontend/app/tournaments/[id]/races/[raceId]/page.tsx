@@ -1,6 +1,6 @@
 "use client";
 
-import { API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -143,9 +143,8 @@ export default function RaceResultPage() {
         result_code: row.result_code,
         note: row.note || null,
       }));
-      const res = await fetch(`${API_BASE}/races/${raceId}/results`, {
+      const res = await apiFetch(`/races/${raceId}/results`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) { setError("結果保存に失敗しました"); return; }

@@ -1,6 +1,6 @@
 "use client";
 
-import { API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -102,9 +102,8 @@ export default function BoatsPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/boats`, {
+      const res = await apiFetch(`/tournaments/${tournamentId}/boats`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           boat_number: boatNumber,
           sail_number: sailNumber,

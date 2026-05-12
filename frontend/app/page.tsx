@@ -1,6 +1,6 @@
 "use client";
 
-import { API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -124,9 +124,8 @@ export default function Home() {
     if (!name.trim()) { setError("大会名は必須です"); return; }
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/tournaments`, {
+      const res = await apiFetch("/tournaments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name, short_name: shortName || null,
           start_date: startDate || null, end_date: endDate || null,

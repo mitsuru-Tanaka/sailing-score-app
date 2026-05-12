@@ -1,6 +1,6 @@
 "use client";
 
-import { API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -123,9 +123,8 @@ export default function RulesPage() {
     e.preventDefault();
     setMessage(""); setError(""); setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/rules`, {
+      const res = await apiFetch(`/tournaments/${tournamentId}/rules`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           scheduled_races: Number(form.scheduled_races),
           minimum_races_for_series: Number(form.minimum_races_for_series),
