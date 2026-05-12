@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -31,10 +32,14 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+# ALLOWED_ORIGINS 環境変数があればそれを使い、なければワイルドカードを許可
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
+allow_origins_list = [o.strip() for o in _raw_origins.split(",") if o.strip()] or ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=allow_origins_list,
+    allow_credentials=allow_origins_list != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

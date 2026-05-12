@@ -2,7 +2,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./app.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:////tmp/sailing.db")
 
 # Render の PostgreSQL は "postgres://" で始まるが SQLAlchemy は "postgresql://" が必要
 if DATABASE_URL.startswith("postgres://"):
