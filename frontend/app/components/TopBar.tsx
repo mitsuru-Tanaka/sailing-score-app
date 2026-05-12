@@ -1,16 +1,51 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase";
+
+const NAV  = "#1F4E78";
+const WHITE = "#ffffff";
 
 export default function TopBar() {
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setEmail(user?.email ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_, session) => {
+        setEmail(session?.user?.email ?? null);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function handleLogout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
+
   return (
     <header
       className="no-print"
       style={{
-        backgroundColor: "#1F4E78",
-        color: "#ffffff",
+        backgroundColor: NAV,
+        color: WHITE,
         padding: "0 24px",
         height: "52px",
         display: "flex",
         alignItems: "center",
+        justifyContent: "space-between",
         boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
         position: "sticky",
         top: 0,
@@ -20,7 +55,7 @@ export default function TopBar() {
       <Link
         href="/"
         style={{
-          color: "#ffffff",
+          color: WHITE,
           textDecoration: "none",
           fontWeight: "700",
           fontSize: "17px",
@@ -32,6 +67,49 @@ export default function TopBar() {
       >
         ⛵ セーリング得点管理
       </Link>
+
+      {email && (
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <Link
+            href="/admin"
+            style={{
+              color: "rgba(255,255,255,0.75)",
+              textDecoration: "none",
+              fontSize: "13px",
+              fontWeight: "500",
+            }}
+          >
+            管理
+          </Link>
+          <span
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              fontSize: "13px",
+              maxWidth: "200px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {email}
+          </span>
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: "5px 12px",
+              backgroundColor: "rgba(255,255,255,0.12)",
+              color: WHITE,
+              border: "1px solid rgba(255,255,255,0.25)",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: "600",
+            }}
+          >
+            ログアウト
+          </button>
+        </div>
+      )}
     </header>
   );
 }
