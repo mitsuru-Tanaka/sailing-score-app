@@ -31,7 +31,11 @@ from schemas import (
     StandingsV3Response,
 )
 
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+    print("[main] create_all OK", flush=True)
+except Exception as e:
+    print(f"[main] create_all FAILED: {type(e).__name__}: {e}", flush=True)
 
 app = FastAPI()
 
