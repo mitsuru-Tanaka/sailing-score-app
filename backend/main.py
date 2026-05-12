@@ -886,14 +886,23 @@ def read_root():
     return {"message": "Hello Sailing App"}
 
 @app.get("/tournaments", response_model=list[TournamentOut])
-def get_tournaments(db: Session = Depends(get_db)):
-    return db.query(Tournament).all()
+def get_tournaments(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role == "admin":
+        return db.query(Tournament).all()
+    ids = [
+        m.tournament_id
+        for m in db.query(TournamentMember)
+            .filter(TournamentMember.user_id == current_user.id)
+            .all()
+    ]
+    return db.query(Tournament).filter(Tournament.id.in_(ids)).all()
 
 @app.get("/tournaments/{tournament_id}", response_model=TournamentOut)
-def get_tournament(tournament_id: int, db: Session = Depends(get_db)):
+def get_tournament(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
+    check_tournament_access(tournament_id, current_user, db)
     return tournament
 
 @app.post("/tournaments", response_model=TournamentOut)
@@ -938,11 +947,11 @@ def create_tournament(
     return new_tournament
 
 @app.get("/tournaments/{tournament_id}/series", response_model=list[SeriesOut])
-def get_series(tournament_id: int, db: Session = Depends(get_db)):
+def get_series(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
-
+    check_tournament_access(tournament_id, current_user, db)
     return (
         db.query(Series)
         .filter(Series.tournament_id == tournament_id)
@@ -952,11 +961,11 @@ def get_series(tournament_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/tournaments/{tournament_id}/ranking-profiles", response_model=list[RankingProfileOut])
-def get_ranking_profiles(tournament_id: int, db: Session = Depends(get_db)):
+def get_ranking_profiles(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
-
+    check_tournament_access(tournament_id, current_user, db)
     return (
         db.query(RankingProfile)
         .filter(RankingProfile.tournament_id == tournament_id)
@@ -1018,11 +1027,11 @@ def add_tournament_editor(
 
 
 @app.get("/tournaments/{tournament_id}/boats", response_model=list[BoatOut])
-def get_boats(tournament_id: int, db: Session = Depends(get_db)):
+def get_boats(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
-
+    check_tournament_access(tournament_id, current_user, db)
     return db.query(Boat).filter(Boat.tournament_id == tournament_id).all()
 
 
@@ -1045,10 +1054,11 @@ def create_boat(
     return new_boat
 
 @app.get("/tournaments/{tournament_id}/rules", response_model=RuleConfigOut)
-def get_rule_config(tournament_id: int, db: Session = Depends(get_db)):
+def get_rule_config(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
+    check_tournament_access(tournament_id, current_user, db)
 
     rule_config = db.query(RuleConfig).filter(RuleConfig.tournament_id == tournament_id).first()
 
@@ -1107,11 +1117,11 @@ def update_rule_config(
     return rule_config
 
 @app.get("/tournaments/{tournament_id}/races", response_model=list[RaceOut])
-def get_races(tournament_id: int, db: Session = Depends(get_db)):
+def get_races(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
-
+    check_tournament_access(tournament_id, current_user, db)
     races = (
         db.query(Race)
         .filter(Race.tournament_id == tournament_id)
@@ -1153,11 +1163,11 @@ def create_race(
     return new_race
 
 @app.get("/races/{race_id}/results", response_model=list[RaceResultOut])
-def get_race_results(race_id: int, db: Session = Depends(get_db)):
+def get_race_results(race_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     race = db.query(Race).filter(Race.id == race_id).first()
     if race is None:
         raise HTTPException(status_code=404, detail="Race not found")
-
+    check_tournament_access(race.tournament_id, current_user, db)
     results = (
         db.query(RaceResult)
         .filter(RaceResult.race_id == race_id)
@@ -1226,14 +1236,16 @@ def save_race_results(
     return new_results
 
 @app.get("/tournaments/{tournament_id}/standings", response_model=list[StandingRow])
-def get_standings(tournament_id: int, db: Session = Depends(get_db)):
+def get_standings(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    check_tournament_access(tournament_id, current_user, db)
     return calculate_standings(tournament_id, db)
 
 @app.get("/tournaments/{tournament_id}/standings-v2", response_model=StandingsResponse)
-def get_standings_v2(tournament_id: int, db: Session = Depends(get_db)):
+def get_standings_v2(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
+    check_tournament_access(tournament_id, current_user, db)
 
     if tournament.event_template == "TEAM_3_BOATS":
         return calculate_team3_standings_sections(tournament_id, db)
@@ -1266,10 +1278,11 @@ def get_standings_v2(tournament_id: int, db: Session = Depends(get_db)):
     raise HTTPException(status_code=501, detail="standings-v2 not implemented for this event_template yet")
 
 @app.get("/tournaments/{tournament_id}/standings-v3", response_model=StandingsV3Response)
-def get_standings_v3(tournament_id: int, db: Session = Depends(get_db)):
+def get_standings_v3(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
+    check_tournament_access(tournament_id, current_user, db)
 
     if tournament.event_template != "TEAM_3_BOATS":
         raise HTTPException(status_code=501, detail="standings-v3 is only implemented for TEAM_3_BOATS")
@@ -1311,7 +1324,8 @@ def get_standings_v3(tournament_id: int, db: Session = Depends(get_db)):
     }
 
 @app.get("/tournaments/{tournament_id}/export/excel")
-def export_excel(tournament_id: int, db: Session = Depends(get_db)):
+def export_excel(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    check_tournament_access(tournament_id, current_user, db)
     wb = build_standings_workbook(tournament_id, db)
 
     output = BytesIO()
@@ -1330,7 +1344,8 @@ def export_excel(tournament_id: int, db: Session = Depends(get_db)):
     )
 
 @app.post("/tournaments/{tournament_id}/seed/team3-demo")
-def seed_team3_demo(tournament_id: int, db: Session = Depends(get_db)):
+def seed_team3_demo(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    check_tournament_access(tournament_id, current_user, db, owner_only=True)
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")

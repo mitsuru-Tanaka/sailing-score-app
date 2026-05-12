@@ -1,6 +1,6 @@
 "use client";
 
-import { API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
@@ -506,17 +506,17 @@ export default function StandingsPage() {
   const fetchData = useCallback(async () => {
     if (!id) return;
     try {
-      const tRes = await fetch(`${API_BASE}/tournaments/${id}`);
+      const tRes = await apiFetch(`/tournaments/${id}`);
       if (!tRes.ok) throw new Error("大会情報の取得に失敗しました");
       const t: Tournament = await tRes.json();
       setTournament(t);
 
       if (t.event_template === "TEAM_3_BOATS") {
-        const sRes = await fetch(`${API_BASE}/tournaments/${id}/standings-v3`);
+        const sRes = await apiFetch(`/tournaments/${id}/standings-v3`);
         if (!sRes.ok) throw new Error("順位の取得に失敗しました");
         setV3Response(await sRes.json());
       } else {
-        const sRes = await fetch(`${API_BASE}/tournaments/${id}/standings-v2`);
+        const sRes = await apiFetch(`/tournaments/${id}/standings-v2`);
         if (!sRes.ok) throw new Error("順位の取得に失敗しました");
         setV2Response(await sRes.json());
       }
@@ -592,22 +592,32 @@ export default function StandingsPage() {
           >
             🖨️ 印刷
           </button>
-          <a
-            href={`${API_BASE}/tournaments/${id}/export/excel`}
+          <button
+            onClick={async () => {
+              const res = await apiFetch(`/tournaments/${id}/export/excel`);
+              if (!res.ok) return;
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `tournament_${id}_standings.xlsx`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
             style={{
               display: "inline-block",
               padding: "9px 18px",
               border: `1px solid ${BORDER_COLOR}`,
               borderRadius: "8px",
-              textDecoration: "none",
               backgroundColor: WHITE,
               color: TEXT_COLOR,
               fontSize: "14px",
               fontWeight: "600",
+              cursor: "pointer",
             }}
           >
             📊 Excel出力
-          </a>
+          </button>
         </div>
       </div>
 
