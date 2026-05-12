@@ -1359,6 +1359,34 @@ def seed_team3_demo(tournament_id: int, db: Session = Depends(get_db)):
 
 # ─── 認証・管理者エンドポイント ────────────────────────────────────────────
 
+@app.post("/admin/bootstrap")
+def bootstrap_admin(db: Session = Depends(get_db)):
+    """
+    初回セットアップ用：BOOTSTRAP_ADMIN_EMAIL のユーザーを admin に昇格する。
+    - BOOTSTRAP_ADMIN_EMAIL 環境変数が未設定なら 400
+    - 既に admin ユーザーが存在すれば 409（二重実行防止）
+    - 対象メールのユーザーが users テーブルに未登録なら 404
+    """
+    email = os.environ.get("BOOTSTRAP_ADMIN_EMAIL", "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="BOOTSTRAP_ADMIN_EMAIL 環境変数が設定されていません")
+
+    existing_admin = db.query(User).filter(User.role == "admin").first()
+    if existing_admin:
+        raise HTTPException(status_code=409, detail="管理者ユーザーが既に存在します（二重実行防止）")
+
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"{email} のユーザーレコードが見つかりません。先に一度ログインしてください。",
+        )
+
+    user.role = "admin"
+    db.commit()
+    return {"message": f"{email} を admin に昇格しました", "user_id": user.id}
+
+
 @app.get("/auth/me", response_model=UserOut)
 def get_me(current_user=Depends(get_current_user)):
     """ログイン中のユーザー情報を返す"""
