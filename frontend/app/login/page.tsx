@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
 const NAV    = "#1F4E78";
@@ -21,7 +20,6 @@ const INPUT_STYLE: React.CSSProperties = {
 };
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -48,8 +46,10 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
-    router.refresh();
+    // router.push はクライアントサイドナビゲーションのため、cookie が書き込まれる前に
+    // ミドルウェアが走り「セッションなし → /login」ループになる場合がある。
+    // window.location.href でフルリロードすることで確実に cookie を読ませる。
+    window.location.href = "/";
   }
 
   return (

@@ -2,19 +2,21 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// 認証不要のパス
 const PUBLIC_PATHS = ["/login"];
-// /tournaments/xxx/standings にマッチ
 const STANDINGS_RE = /^\/tournaments\/[^/]+\/standings(\/.*)?$/;
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 公開ルートはそのまま通す
-  if (
-    PUBLIC_PATHS.includes(pathname) ||
-    STANDINGS_RE.test(pathname)
-  ) {
+  if (PUBLIC_PATHS.includes(pathname) || STANDINGS_RE.test(pathname)) {
+    return NextResponse.next();
+  }
+
+  // 環境変数未設定時はスキップ（ローカル開発・設定ミス対策）
+  const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnon) {
     return NextResponse.next();
   }
 
@@ -22,10 +24,8 @@ export async function middleware(request: NextRequest) {
     request: { headers: request.headers },
   });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  try {
+    const supabase = createServerClient(supabaseUrl, supabaseAnon, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -37,25 +37,30 @@ export async function middleware(request: NextRequest) {
           });
         },
       },
+    });
+
+    // getUser() はネットワーク呼び出しが発生して遅延・タイムアウトの原因になるため
+    // ミドルウェアではクッキー内の JWT をローカル検証する getSession() を使用する
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      return NextResponse.redirect(loginUrl);
     }
-  );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    return NextResponse.redirect(loginUrl);
+    return response;
+  } catch (e) {
+    // Supabase クライアント初期化エラー時は通過させる（ログイン画面に飛ばさない）
+    console.error("[middleware] supabase error:", e);
+    return NextResponse.next();
   }
-
-  return response;
 }
 
 export const config = {
   matcher: [
-    // 静的ファイル・_next を除く全パスに適用
     "/((?!_next/static|_next/image|favicon.*|.*\\.svg|.*\\.png|.*\\.ico).*)",
   ],
 };
