@@ -76,8 +76,9 @@ def require_admin(user=Depends(get_current_user)):
     return user
 
 
-def check_tournament_access(tournament_id: int, user, db: Session):
-    """admin は常にアクセス可。member は tournament_members に登録が必要。"""
+def check_tournament_access(tournament_id: int, user, db: Session, owner_only: bool = False):
+    """admin は常にアクセス可。それ以外は tournament_members に登録が必要。
+    owner_only=True の場合は owner ロールのみ許可。"""
     if user.role == "admin":
         return
     from models import TournamentMember
@@ -87,3 +88,5 @@ def check_tournament_access(tournament_id: int, user, db: Session):
     ).first()
     if not member:
         raise HTTPException(status_code=403, detail="この大会へのアクセス権限がありません")
+    if owner_only and member.role != "owner":
+        raise HTTPException(status_code=403, detail="大会オーナーのみ実行可能です")

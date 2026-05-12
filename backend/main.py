@@ -32,6 +32,8 @@ from schemas import (
     UserOut,
     InviteRequest,
     InviteResponse,
+    TournamentMemberOut,
+    AddMemberRequest,
 )
 from auth import get_current_user, require_admin, check_tournament_access, get_supabase, AUTH_ENABLED
 
@@ -898,12 +900,18 @@ def get_tournament(tournament_id: int, db: Session = Depends(get_db)):
 def create_tournament(
     tournament: TournamentCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user=Depends(get_current_user),
 ):
-    new_tournament = Tournament(**tournament.model_dump())
+    new_tournament = Tournament(**tournament.model_dump(), owner_id=current_user.id)
     db.add(new_tournament)
-    db.commit()
-    db.refresh(new_tournament)
+    db.flush()  # id を確定させてから tournament_members に追加
+
+    # 作成者を owner として登録
+    db.add(TournamentMember(
+        tournament_id=new_tournament.id,
+        user_id=current_user.id,
+        role="owner",
+    ))
 
     rule_config = RuleConfig(
         tournament_id=new_tournament.id,
@@ -955,6 +963,59 @@ def get_ranking_profiles(tournament_id: int, db: Session = Depends(get_db)):
         .order_by(RankingProfile.id.asc())
         .all()
     )
+
+@app.get("/tournaments/{tournament_id}/members", response_model=list[TournamentMemberOut])
+def list_tournament_members(
+    tournament_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """大会メンバー一覧（owner/editor 本人または admin のみ）"""
+    check_tournament_access(tournament_id, current_user, db)
+    members = (
+        db.query(TournamentMember)
+        .filter(TournamentMember.tournament_id == tournament_id)
+        .all()
+    )
+    result = []
+    for m in members:
+        u = db.query(User).filter(User.id == m.user_id).first()
+        result.append(TournamentMemberOut(
+            user_id=m.user_id,
+            email=u.email if u else "unknown",
+            role=m.role,
+        ))
+    return result
+
+
+@app.post("/tournaments/{tournament_id}/members", response_model=TournamentMemberOut)
+def add_tournament_editor(
+    tournament_id: int,
+    body: AddMemberRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """メールアドレスで editor を追加（owner または admin のみ）"""
+    check_tournament_access(tournament_id, current_user, db, owner_only=True)
+
+    target = db.query(User).filter(User.email == body.email).first()
+    if target is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"{body.email} のユーザーが見つかりません（先にサインアップが必要です）",
+        )
+
+    existing = db.query(TournamentMember).filter(
+        TournamentMember.tournament_id == tournament_id,
+        TournamentMember.user_id == target.id,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="既にメンバーとして登録されています")
+
+    db.add(TournamentMember(tournament_id=tournament_id, user_id=target.id, role="editor"))
+    db.commit()
+    return TournamentMemberOut(user_id=target.id, email=target.email, role="editor")
+
 
 @app.get("/tournaments/{tournament_id}/boats", response_model=list[BoatOut])
 def get_boats(tournament_id: int, db: Session = Depends(get_db)):

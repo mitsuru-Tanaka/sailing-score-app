@@ -27,6 +27,7 @@ class TournamentOut(BaseModel):
     class_config: str | None = None
     event_template: str
     notes: str | None = None
+    owner_id: str | None = None
 
     class Config:
         from_attributes = True
@@ -265,3 +266,13 @@ class InviteResponse(BaseModel):
 class TournamentMemberAdd(BaseModel):
     user_id: str
     tournament_id: int
+
+
+class TournamentMemberOut(BaseModel):
+    user_id: str
+    email: str
+    role: str
+
+
+class AddMemberRequest(BaseModel):
+    email: str

@@ -18,6 +18,7 @@ class TournamentMember(Base):
 
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), primary_key=True)
     user_id = Column(String, ForeignKey("users.id"), primary_key=True)
+    role = Column(String, nullable=False, default="editor", server_default="editor")
 
 
 class Tournament(Base):
@@ -34,6 +35,7 @@ class Tournament(Base):
     class_config = Column(String, nullable=True)   # 追加
     notes = Column(String, nullable=True)
     event_template = Column(String, nullable=False, default="INDIVIDUAL")
+    owner_id = Column(String, ForeignKey("users.id"), nullable=True)
 
 class Series(Base):
     __tablename__ = "series"

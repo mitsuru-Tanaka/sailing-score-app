@@ -168,11 +168,19 @@ export default function LoginPage() {
               fontWeight: "700",
               opacity: loading ? 0.7 : 1,
               boxShadow: "0 2px 8px rgba(31,78,120,0.2)",
+              marginBottom: "16px",
             }}
           >
             {loading ? "ログイン中..." : "ログイン"}
           </button>
         </form>
+
+        <p style={{ textAlign: "center", fontSize: "13px", color: MUTED, margin: 0 }}>
+          アカウントをお持ちでない方は{" "}
+          <a href="/signup" style={{ color: NAV, fontWeight: "600", textDecoration: "none" }}>
+            アカウント登録
+          </a>
+        </p>
       </div>
     </main>
   );
