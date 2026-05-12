@@ -1,6 +1,23 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from db import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True)          # Supabase UUID
+    email = Column(String, nullable=False, unique=True)
+    role = Column(String, nullable=False, default="member")  # admin / member
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class TournamentMember(Base):
+    __tablename__ = "tournament_members"
+
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), primary_key=True)
 
 
 class Tournament(Base):

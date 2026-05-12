@@ -11,7 +11,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 
 from db import Base, engine, get_db
-from models import Tournament, Boat, RuleConfig, Race, RaceResult, Series, RankingProfile
+from models import Tournament, Boat, RuleConfig, Race, RaceResult, Series, RankingProfile, User, TournamentMember
 from schemas import (
     TournamentCreate,
     TournamentOut,
@@ -29,7 +29,11 @@ from schemas import (
     StandingSection,
     StandingsResponse,
     StandingsV3Response,
+    UserOut,
+    InviteRequest,
+    InviteResponse,
 )
+from auth import get_current_user, require_admin, check_tournament_access, get_supabase, AUTH_ENABLED
 
 try:
     Base.metadata.create_all(bind=engine)
@@ -891,7 +895,11 @@ def get_tournament(tournament_id: int, db: Session = Depends(get_db)):
     return tournament
 
 @app.post("/tournaments", response_model=TournamentOut)
-def create_tournament(tournament: TournamentCreate, db: Session = Depends(get_db)):
+def create_tournament(
+    tournament: TournamentCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
     new_tournament = Tournament(**tournament.model_dump())
     db.add(new_tournament)
     db.commit()
@@ -958,7 +966,13 @@ def get_boats(tournament_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/tournaments/{tournament_id}/boats", response_model=BoatOut)
-def create_boat(tournament_id: int, boat: BoatCreate, db: Session = Depends(get_db)):
+def create_boat(
+    tournament_id: int,
+    boat: BoatCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    check_tournament_access(tournament_id, current_user, db)
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -1006,7 +1020,9 @@ def update_rule_config(
     tournament_id: int,
     payload: RuleConfigUpdate,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
+    check_tournament_access(tournament_id, current_user, db)
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -1045,7 +1061,13 @@ def get_races(tournament_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/tournaments/{tournament_id}/races", response_model=RaceOut)
-def create_race(tournament_id: int, race: RaceCreate, db: Session = Depends(get_db)):
+def create_race(
+    tournament_id: int,
+    race: RaceCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    check_tournament_access(tournament_id, current_user, db)
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -1088,6 +1110,7 @@ def save_race_results(
     race_id: int,
     payload: list[RaceResultInput],
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
     race = db.query(Race).filter(Race.id == race_id).first()
     if race is None:
@@ -1096,6 +1119,8 @@ def save_race_results(
     tournament = db.query(Tournament).filter(Tournament.id == race.tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
+
+    check_tournament_access(tournament.id, current_user, db)
 
     rule_config = db.query(RuleConfig).filter(RuleConfig.tournament_id == tournament.id).first()
     if rule_config is None:
@@ -1330,3 +1355,78 @@ def seed_team3_demo(tournament_id: int, db: Session = Depends(get_db)):
         "race_id": race.id,
         "boat_count": len(boats),
     }
+
+
+# ─── 認証・管理者エンドポイント ────────────────────────────────────────────
+
+@app.get("/auth/me", response_model=UserOut)
+def get_me(current_user=Depends(get_current_user)):
+    """ログイン中のユーザー情報を返す"""
+    return current_user
+
+
+@app.get("/admin/users", response_model=list[UserOut])
+def list_users(db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    """全ユーザー一覧（管理者のみ）"""
+    return db.query(User).order_by(User.email).all()
+
+
+@app.post("/admin/invite", response_model=InviteResponse)
+def invite_user(
+    body: InviteRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    """メールで招待を送り、usersテーブルに登録する（管理者のみ）"""
+    if not AUTH_ENABLED:
+        raise HTTPException(status_code=503, detail="認証が無効です（SUPABASE_URL 未設定）")
+
+    try:
+        supabase = get_supabase()
+        resp = supabase.auth.admin.invite_user_by_email(body.email)
+        sb_user = resp.user
+        if sb_user is None:
+            raise HTTPException(status_code=500, detail="Supabase 招待に失敗しました")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"招待エラー: {e}")
+
+    # users テーブルに登録（既存なら role だけ更新）
+    user = db.query(User).filter(User.id == sb_user.id).first()
+    if user is None:
+        user = User(id=sb_user.id, email=body.email, role=body.role)
+        db.add(user)
+    else:
+        user.role = body.role
+
+    # member の場合は担当大会を登録
+    if body.role == "member":
+        for tid in body.tournament_ids:
+            exists = db.query(TournamentMember).filter(
+                TournamentMember.tournament_id == tid,
+                TournamentMember.user_id == sb_user.id,
+            ).first()
+            if not exists:
+                db.add(TournamentMember(tournament_id=tid, user_id=sb_user.id))
+
+    db.commit()
+    return InviteResponse(message="招待メールを送信しました", email=body.email, role=body.role)
+
+
+@app.post("/admin/users/{user_id}/tournaments/{tournament_id}")
+def add_tournament_member(
+    user_id: str,
+    tournament_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    """ユーザーに担当大会を追加（管理者のみ）"""
+    exists = db.query(TournamentMember).filter(
+        TournamentMember.tournament_id == tournament_id,
+        TournamentMember.user_id == user_id,
+    ).first()
+    if not exists:
+        db.add(TournamentMember(tournament_id=tournament_id, user_id=user_id))
+        db.commit()
+    return {"message": "追加しました"}

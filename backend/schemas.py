@@ -237,3 +237,31 @@ class StandingsV3Response(BaseModel):
     event_template: str
     class_sections: list[ClassSection]
     overall_section: OverallSection | None = None
+
+
+# --- 認証 ---
+
+class UserOut(BaseModel):
+    id: str
+    email: str
+    role: str
+
+    class Config:
+        from_attributes = True
+
+
+class InviteRequest(BaseModel):
+    email: str
+    role: str = "member"
+    tournament_ids: list[int] = []  # member の場合に担当大会を指定
+
+
+class InviteResponse(BaseModel):
+    message: str
+    email: str
+    role: str
+
+
+class TournamentMemberAdd(BaseModel):
+    user_id: str
+    tournament_id: int
