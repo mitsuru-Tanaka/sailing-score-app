@@ -93,11 +93,16 @@ class Boat(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), nullable=False, index=True)
-    boat_number = Column(String, nullable=False)
+    entry_number = Column(Integer, nullable=True)
+    boat_number = Column(String, nullable=True)
     sail_number = Column(String, nullable=False)
-    organization_name = Column(String, nullable=False)
+    organization_name = Column(String, nullable=True)
     helmsman_name = Column(String, nullable=True)
+    helmsman_name2 = Column(String, nullable=True)
+    helmsman_name3 = Column(String, nullable=True)
     crew_name = Column(String, nullable=True)
+    crew_name2 = Column(String, nullable=True)
+    crew_name3 = Column(String, nullable=True)
     notes = Column(String, nullable=True)
 
     series_id = Column(Integer, ForeignKey("series.id"), nullable=True)

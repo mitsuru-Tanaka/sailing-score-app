@@ -49,13 +49,18 @@ except Exception as e:
 # カラム追加マイグレーション（冪等・既存DBへの後付け対応）
 try:
     with engine.connect() as conn:
-        conn.execute(text(
-            "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS owner_id TEXT"
-        ))
+        conn.execute(text("ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS owner_id TEXT"))
         conn.execute(text(
             "ALTER TABLE tournament_members ADD COLUMN IF NOT EXISTS "
             "role TEXT NOT NULL DEFAULT 'editor'"
         ))
+        conn.execute(text("ALTER TABLE boats ADD COLUMN IF NOT EXISTS entry_number INTEGER"))
+        conn.execute(text("ALTER TABLE boats ADD COLUMN IF NOT EXISTS helmsman_name2 TEXT"))
+        conn.execute(text("ALTER TABLE boats ADD COLUMN IF NOT EXISTS helmsman_name3 TEXT"))
+        conn.execute(text("ALTER TABLE boats ADD COLUMN IF NOT EXISTS crew_name2 TEXT"))
+        conn.execute(text("ALTER TABLE boats ADD COLUMN IF NOT EXISTS crew_name3 TEXT"))
+        conn.execute(text("ALTER TABLE boats ALTER COLUMN boat_number DROP NOT NULL"))
+        conn.execute(text("ALTER TABLE boats ALTER COLUMN organization_name DROP NOT NULL"))
         conn.commit()
     print("[main] column migrations OK", flush=True)
 except Exception as e:
@@ -1095,6 +1100,7 @@ def create_boat(
 async def import_boats_csv(
     tournament_id: int,
     file: UploadFile = File(...),
+    boat_class: str | None = None,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -1109,12 +1115,11 @@ async def import_boats_csv(
 
     reader = csv_module.DictReader(io.StringIO(text_data))
 
-    # 現在の最大艇番を取得（連番割り当て用）
-    existing_count = db.query(Boat).filter(Boat.tournament_id == tournament_id).count()
-    next_num = existing_count + 1
-
     imported = 0
     skipped = 0
+
+    def _s(v: str | None) -> str | None:
+        return v.strip() or None if v else None
 
     for row in reader:
         sail_number = (row.get("sail_number") or "").strip()
@@ -1122,7 +1127,6 @@ async def import_boats_csv(
             skipped += 1
             continue
 
-        # sail_number 重複チェック（この大会内）
         dup = db.query(Boat).filter(
             Boat.tournament_id == tournament_id,
             Boat.sail_number == sail_number,
@@ -1131,19 +1135,27 @@ async def import_boats_csv(
             skipped += 1
             continue
 
-        org = (row.get("organization_name") or "").strip() or "未設定"
+        entry_raw = (row.get("entry_number") or "").strip()
+        entry_num = int(entry_raw) if entry_raw.isdigit() else None
+
+        resolved_class = boat_class or _s(row.get("boat_class"))
+
         db.add(Boat(
             tournament_id=tournament_id,
-            boat_number=str(next_num),
+            entry_number=entry_num,
+            boat_number=_s(row.get("boat_number")),
             sail_number=sail_number,
-            organization_name=org,
-            helmsman_name=(row.get("helmsman_name") or "").strip() or None,
-            crew_name=(row.get("crew_name") or "").strip() or None,
-            boat_class=(row.get("boat_class") or "").strip() or None,
-            team_name=(row.get("team_name") or "").strip() or None,
+            organization_name=_s(row.get("organization_name")),
+            helmsman_name=_s(row.get("helmsman_name")),
+            helmsman_name2=_s(row.get("helmsman_name2")),
+            helmsman_name3=_s(row.get("helmsman_name3")),
+            crew_name=_s(row.get("crew_name")),
+            crew_name2=_s(row.get("crew_name2")),
+            crew_name3=_s(row.get("crew_name3")),
+            boat_class=resolved_class,
+            team_name=_s(row.get("team_name")),
         ))
         imported += 1
-        next_num += 1
 
     db.commit()
     return {"imported": imported, "skipped": skipped}
