@@ -14,6 +14,19 @@ class TournamentCreate(BaseModel):
     notes: str | None = None
 
 
+class TournamentUpdate(BaseModel):
+    name: str | None = None
+    short_name: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    venue: str | None = None
+    organizer: str | None = None
+    class_name: str | None = None
+    class_config: str | None = None
+    event_template: str | None = None
+    notes: str | None = None
+
+
 
 class TournamentOut(BaseModel):
     id: int

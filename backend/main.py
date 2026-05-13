@@ -17,6 +17,7 @@ from db import Base, engine, get_db
 from models import Tournament, Boat, RuleConfig, Race, RaceResult, Series, RankingProfile, User, TournamentMember
 from schemas import (
     TournamentCreate,
+    TournamentUpdate,
     TournamentOut,
     BoatCreate,
     BoatOut,
@@ -971,6 +972,27 @@ def create_tournament(
     db.commit()
     db.refresh(new_tournament)
     return new_tournament
+
+
+@app.put("/tournaments/{tournament_id}", response_model=TournamentOut)
+def update_tournament(
+    tournament_id: int,
+    body: TournamentUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    check_tournament_access(tournament_id, current_user, db, owner_only=True)
+
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(tournament, field, value)
+
+    db.commit()
+    db.refresh(tournament)
+    return tournament
+
 
 @app.get("/tournaments/{tournament_id}/series", response_model=list[SeriesOut])
 def get_series(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
