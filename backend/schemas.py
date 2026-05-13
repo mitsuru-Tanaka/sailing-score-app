@@ -171,12 +171,31 @@ class RaceCreate(BaseModel):
     status: str = "DRAFT"
 
 
+class RaceUpdate(BaseModel):
+    name: str | None = None
+    status: str | None = None
+    race_date: str | None = None
+    weather: str | None = None
+    wind_direction: str | None = None
+    wind_speed: str | None = None
+    start_time: str | None = None
+    finish_time_top: str | None = None
+    finish_time_last: str | None = None
+
+
 class RaceOut(BaseModel):
     id: int
     tournament_id: int
     race_number: int
     name: str | None = None
     status: str
+    race_date: str | None = None
+    weather: str | None = None
+    wind_direction: str | None = None
+    wind_speed: str | None = None
+    start_time: str | None = None
+    finish_time_top: str | None = None
+    finish_time_last: str | None = None
 
     class Config:
         from_attributes = True

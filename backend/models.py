@@ -150,6 +150,13 @@ class Race(Base):
     race_number = Column(Integer, nullable=False)
     name = Column(String, nullable=True)
     status = Column(String, nullable=False, default="DRAFT")
+    race_date = Column(String, nullable=True)
+    weather = Column(String, nullable=True)
+    wind_direction = Column(String, nullable=True)
+    wind_speed = Column(String, nullable=True)
+    start_time = Column(String, nullable=True)
+    finish_time_top = Column(String, nullable=True)
+    finish_time_last = Column(String, nullable=True)
 
 class RaceResult(Base):
     __tablename__ = "race_results"
