@@ -1271,10 +1271,14 @@ async def import_boats_csv(
     check_tournament_access(tournament_id, current_user, db)
 
     content = await file.read()
-    try:
-        text_data = content.decode("utf-8-sig")  # Excel BOM 対応
-    except UnicodeDecodeError:
-        text_data = content.decode("shift-jis", errors="replace")
+    for _enc in ("utf-8-sig", "cp932", "shift-jis", "utf-8"):
+        try:
+            text_data = content.decode(_enc)
+            break
+        except (UnicodeDecodeError, LookupError):
+            continue
+    else:
+        text_data = content.decode("utf-8", errors="replace")
 
     reader = csv_module.DictReader(io.StringIO(text_data))
 
