@@ -381,9 +381,6 @@ export default function BoatsPage() {
             {submitError && <span style={{ fontSize: "13px", color: "#dc2626" }}>{submitError}</span>}
           </div>
 
-          <p style={{ fontSize: "11px", color: MUTED, marginTop: "8px", marginBottom: 0 }}>
-            ス1-3 = スキッパー1〜3、ク1-3 = クルー1〜3。セールNo.のみ必須。
-          </p>
         </div>
 
         {/* Existing boats */}
