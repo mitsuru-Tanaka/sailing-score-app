@@ -80,17 +80,16 @@ class RankingProfileOut(BaseModel):
 
 
 class BoatCreate(BaseModel):
-    entry_number: int | None = None
-    boat_number: str | None = None
+    entry_number: Optional[int] = None
+    boat_number: Optional[str] = None
     sail_number: str
-    organization_name: str | None = None
-    helmsman_name: str | None = None
-    helmsman_name2: str | None = None
-    helmsman_name3: str | None = None
-    crew_name: str | None = None
-    crew_name2: str | None = None
-    crew_name3: str | None = None
-
+    organization_name: Optional[str] = None
+    helmsman_name: Optional[str] = None
+    helmsman_name2: Optional[str] = None
+    helmsman_name3: Optional[str] = None
+    crew_name: Optional[str] = None
+    crew_name2: Optional[str] = None
+    crew_name3: Optional[str] = None
     series_id: Optional[int] = None
     boat_class: Optional[str] = None
     team_name: Optional[str] = None
@@ -98,8 +97,7 @@ class BoatCreate(BaseModel):
     is_team_scoring_target: bool = True
     is_individual_scoring_target: bool = True
     group_tags: Optional[str] = None
-
-    notes: str | None = None
+    notes: Optional[str] = None
 
 
 class BoatOut(BaseModel):
