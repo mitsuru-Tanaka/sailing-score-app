@@ -220,8 +220,8 @@ export default function BoatsPage() {
     }
   }
 
-  const COL_WIDTHS = ["52px", "110px", "62px", "90px", "80px", "72px", "72px", "80px", "72px", "72px", "36px"];
-  const HEADERS    = ["エントリー番号", "大学名", "艇番", "セールNo.*", "ス1", "ス2", "ス3", "ク1", "ク2", "ク3", ""];
+  const COL_WIDTHS = ["72px", "110px", "72px", "90px", "80px", "72px", "72px", "80px", "72px", "72px", "36px"];
+  const HEADERS    = ["Entry No.", "Univ.", "Boat No.", "Sail No.*", "Helm 1", "Helm 2", "Helm 3", "Crew 1", "Crew 2", "Crew 3", ""];
   const FIELDS: (keyof RowDraft)[] = [
     "entry_number","organization_name","boat_number","sail_number",
     "helmsman_name","helmsman_name2","helmsman_name3",
