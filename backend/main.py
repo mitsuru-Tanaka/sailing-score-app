@@ -1241,24 +1241,6 @@ def get_boats(tournament_id: int, db: Session = Depends(get_db), current_user=De
     return db.query(Boat).filter(Boat.tournament_id == tournament_id).all()
 
 
-@app.post("/tournaments/{tournament_id}/boats", response_model=BoatOut)
-def create_boat(
-    tournament_id: int,
-    boat: BoatCreate,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    check_tournament_access(tournament_id, current_user, db)
-    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
-    if tournament is None:
-        raise HTTPException(status_code=404, detail="Tournament not found")
-
-    new_boat = Boat(tournament_id=tournament_id, **boat.model_dump())
-    db.add(new_boat)
-    db.commit()
-    db.refresh(new_boat)
-    return new_boat
-
 @app.post("/tournaments/{tournament_id}/boats/import")
 async def import_boats_csv(
     tournament_id: int,
@@ -1326,6 +1308,25 @@ async def import_boats_csv(
 
     db.commit()
     return {"imported": imported, "skipped": skipped}
+
+
+@app.post("/tournaments/{tournament_id}/boats", response_model=BoatOut)
+def create_boat(
+    tournament_id: int,
+    boat: BoatCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    check_tournament_access(tournament_id, current_user, db)
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    new_boat = Boat(tournament_id=tournament_id, **boat.model_dump())
+    db.add(new_boat)
+    db.commit()
+    db.refresh(new_boat)
+    return new_boat
 
 
 @app.get("/tournaments/{tournament_id}/rules", response_model=RuleConfigOut)
