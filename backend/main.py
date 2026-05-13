@@ -46,25 +46,28 @@ try:
 except Exception as e:
     print(f"[main] create_all FAILED: {type(e).__name__}: {e}", flush=True)
 
-# カラム追加マイグレーション（冪等・既存DBへの後付け対応）
-try:
-    with engine.connect() as conn:
-        conn.execute(text("ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS owner_id TEXT"))
-        conn.execute(text(
-            "ALTER TABLE tournament_members ADD COLUMN IF NOT EXISTS "
-            "role TEXT NOT NULL DEFAULT 'editor'"
-        ))
-        conn.execute(text("ALTER TABLE boats ADD COLUMN IF NOT EXISTS entry_number INTEGER"))
-        conn.execute(text("ALTER TABLE boats ADD COLUMN IF NOT EXISTS helmsman_name2 TEXT"))
-        conn.execute(text("ALTER TABLE boats ADD COLUMN IF NOT EXISTS helmsman_name3 TEXT"))
-        conn.execute(text("ALTER TABLE boats ADD COLUMN IF NOT EXISTS crew_name2 TEXT"))
-        conn.execute(text("ALTER TABLE boats ADD COLUMN IF NOT EXISTS crew_name3 TEXT"))
-        conn.execute(text("ALTER TABLE boats ALTER COLUMN boat_number DROP NOT NULL"))
-        conn.execute(text("ALTER TABLE boats ALTER COLUMN organization_name DROP NOT NULL"))
-        conn.commit()
-    print("[main] column migrations OK", flush=True)
-except Exception as e:
-    print(f"[main] column migrations error (non-fatal): {e}", flush=True)
+# カラム追加マイグレーション — 1文ずつ独立した try/except で囲み、
+# 1つが失敗しても他のマイグレーションに影響しないようにする。
+_MIGRATIONS = [
+    "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS owner_id TEXT",
+    "ALTER TABLE tournament_members ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'editor'",
+    "ALTER TABLE boats ADD COLUMN IF NOT EXISTS entry_number INTEGER",
+    "ALTER TABLE boats ADD COLUMN IF NOT EXISTS helmsman_name2 TEXT",
+    "ALTER TABLE boats ADD COLUMN IF NOT EXISTS helmsman_name3 TEXT",
+    "ALTER TABLE boats ADD COLUMN IF NOT EXISTS crew_name2 TEXT",
+    "ALTER TABLE boats ADD COLUMN IF NOT EXISTS crew_name3 TEXT",
+    # PostgreSQL専用: NOT NULL 制約を解除（SQLiteでは非対応だが本番はPostgreSQL）
+    "ALTER TABLE boats ALTER COLUMN boat_number DROP NOT NULL",
+    "ALTER TABLE boats ALTER COLUMN organization_name DROP NOT NULL",
+]
+
+for _sql in _MIGRATIONS:
+    try:
+        with engine.connect() as _conn:
+            _conn.execute(text(_sql))
+            _conn.commit()
+    except Exception as _e:
+        print(f"[main] migration skip ({_e.__class__.__name__}): {_sql[:60]}", flush=True)
 
 app = FastAPI()
 
