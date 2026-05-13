@@ -67,6 +67,12 @@ export default function BoatsPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // CSV インポート
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvResult, setCsvResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [csvError, setCsvError] = useState("");
+
   async function fetchTournament() {
     if (!tournamentId) return;
     const res = await fetch(`${API_BASE}/tournaments/${tournamentId}`);
@@ -125,6 +131,51 @@ export default function BoatsPage() {
     }
   }
 
+  function downloadTemplate() {
+    const header = "organization_name,team_name,boat_class,sail_number,helmsman_name,crew_name";
+    const example = "東京大学,東大A,470,JPN1234,山田太郎,鈴木花子";
+    const blob = new Blob([header + "\n" + example + "\n"], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "boats_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleCsvImport() {
+    if (!csvFile) return;
+    setCsvError(""); setCsvResult(null); setCsvLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", csvFile);
+      const { createClient } = await import("@/lib/supabase");
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${API_BASE}/tournaments/${tournamentId}/boats/import`,
+        {
+          method: "POST",
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {},
+          body: formData,
+        },
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCsvError(data.detail ?? "インポートに失敗しました");
+        return;
+      }
+      const result = await res.json();
+      setCsvResult(result);
+      setCsvFile(null);
+      await fetchBoats();
+    } finally {
+      setCsvLoading(false);
+    }
+  }
+
   return (
     <>
       <TournamentNav id={tournamentId} name={tournament?.name ?? ""} />
@@ -143,6 +194,52 @@ export default function BoatsPage() {
           >
             {showForm ? "✕ 閉じる" : "+ 艇を追加"}
           </button>
+        </div>
+
+        {/* CSVインポート */}
+        <div style={{ ...CARD, marginBottom: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+            <h2 style={{ fontSize: "15px", fontWeight: "700", color: TEXT, margin: 0 }}>CSVインポート</h2>
+            <button
+              onClick={downloadTemplate}
+              style={{
+                padding: "6px 14px", fontSize: "13px", fontWeight: "600",
+                border: `1px solid ${BORDER}`, borderRadius: "6px",
+                backgroundColor: WHITE, color: NAV, cursor: "pointer",
+              }}
+            >
+              テンプレートCSVをダウンロード
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={e => { setCsvFile(e.target.files?.[0] ?? null); setCsvResult(null); setCsvError(""); }}
+              style={{ fontSize: "13px", flex: 1, minWidth: "200px" }}
+            />
+            <button
+              onClick={handleCsvImport}
+              disabled={!csvFile || csvLoading}
+              style={{
+                padding: "8px 18px", fontSize: "13px", fontWeight: "600",
+                backgroundColor: csvFile ? NAV : MUTED, color: WHITE,
+                border: "none", borderRadius: "6px",
+                cursor: csvFile ? "pointer" : "not-allowed",
+                opacity: csvLoading ? 0.7 : 1, whiteSpace: "nowrap",
+              }}
+            >
+              {csvLoading ? "インポート中..." : "アップロード"}
+            </button>
+          </div>
+          {csvResult && (
+            <p style={{ marginTop: "10px", marginBottom: 0, fontSize: "13px", color: "#0e6657", fontWeight: "600" }}>
+              {csvResult.imported} 件登録、{csvResult.skipped} 件スキップ
+            </p>
+          )}
+          {csvError && (
+            <p style={{ marginTop: "10px", marginBottom: 0, fontSize: "13px", color: "#dc2626" }}>{csvError}</p>
+          )}
         </div>
 
         {showForm && (

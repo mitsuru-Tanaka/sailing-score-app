@@ -2,9 +2,12 @@ import os
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-from fastapi import FastAPI, Depends, HTTPException
+import io
+import csv as csv_module
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from io import BytesIO
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
@@ -42,6 +45,21 @@ try:
     print("[main] create_all OK", flush=True)
 except Exception as e:
     print(f"[main] create_all FAILED: {type(e).__name__}: {e}", flush=True)
+
+# カラム追加マイグレーション（冪等・既存DBへの後付け対応）
+try:
+    with engine.connect() as conn:
+        conn.execute(text(
+            "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS owner_id TEXT"
+        ))
+        conn.execute(text(
+            "ALTER TABLE tournament_members ADD COLUMN IF NOT EXISTS "
+            "role TEXT NOT NULL DEFAULT 'editor'"
+        ))
+        conn.commit()
+    print("[main] column migrations OK", flush=True)
+except Exception as e:
+    print(f"[main] column migrations error (non-fatal): {e}", flush=True)
 
 app = FastAPI()
 
@@ -1072,6 +1090,64 @@ def create_boat(
     db.commit()
     db.refresh(new_boat)
     return new_boat
+
+@app.post("/tournaments/{tournament_id}/boats/import")
+async def import_boats_csv(
+    tournament_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """CSVファイルから艇を一括登録。sail_number が重複する行はスキップ。"""
+    check_tournament_access(tournament_id, current_user, db)
+
+    content = await file.read()
+    try:
+        text_data = content.decode("utf-8-sig")  # Excel BOM 対応
+    except UnicodeDecodeError:
+        text_data = content.decode("shift-jis", errors="replace")
+
+    reader = csv_module.DictReader(io.StringIO(text_data))
+
+    # 現在の最大艇番を取得（連番割り当て用）
+    existing_count = db.query(Boat).filter(Boat.tournament_id == tournament_id).count()
+    next_num = existing_count + 1
+
+    imported = 0
+    skipped = 0
+
+    for row in reader:
+        sail_number = (row.get("sail_number") or "").strip()
+        if not sail_number:
+            skipped += 1
+            continue
+
+        # sail_number 重複チェック（この大会内）
+        dup = db.query(Boat).filter(
+            Boat.tournament_id == tournament_id,
+            Boat.sail_number == sail_number,
+        ).first()
+        if dup:
+            skipped += 1
+            continue
+
+        org = (row.get("organization_name") or "").strip() or "未設定"
+        db.add(Boat(
+            tournament_id=tournament_id,
+            boat_number=str(next_num),
+            sail_number=sail_number,
+            organization_name=org,
+            helmsman_name=(row.get("helmsman_name") or "").strip() or None,
+            crew_name=(row.get("crew_name") or "").strip() or None,
+            boat_class=(row.get("boat_class") or "").strip() or None,
+            team_name=(row.get("team_name") or "").strip() or None,
+        ))
+        imported += 1
+        next_num += 1
+
+    db.commit()
+    return {"imported": imported, "skipped": skipped}
+
 
 @app.get("/tournaments/{tournament_id}/rules", response_model=RuleConfigOut)
 def get_rule_config(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
