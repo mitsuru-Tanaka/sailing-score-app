@@ -63,7 +63,6 @@ const NEEDS_FINISH_POS = new Set(["OK", "DSQ", "NSC", "STP", "SCP", "ARB", "PRP"
 const MANUAL_CODES     = new Set(["RDG", "DPI"]);
 const ROW1_CODES = ["DNS", "DNC", "OCS", "DNF", "RET", "BFD", "UFD"] as const;
 const ROW2_CODES = ["DSQ", "NSC", "DNE", "STP", "SCP", "ZFP", "RDG", "DPI"] as const;
-const PENALTY_CODES = [...ROW1_CODES, ...ROW2_CODES];
 
 const NAV    = "#1F4E78";
 const BORDER = "#e2e8f0";
@@ -200,11 +199,19 @@ export default function RaceResultPage() {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
       if (field === "sailInput") {
-        const found = boats.find((b) => b.sail_number === value);
+        const found = value
+          ? boats.find((b) => b.sail_number.toLowerCase() === value.toLowerCase())
+          : undefined;
         next[index].boatId = found?.id ?? null;
-        if (found) next[index].entryInput = found.entry_number?.toString() ?? "";
+        if (found) {
+          next[index].sailInput  = found.sail_number; // normalize to stored case
+          next[index].entryInput = found.entry_number?.toString() ?? "";
+        } else if (!value) {
+          next[index].entryInput = "";
+        }
       } else {
-        const found = value ? boats.find((b) => b.entry_number?.toString() === value) : undefined;
+        if (!value) return next; // clearing entryInput – keep boatId from sailInput
+        const found = boats.find((b) => b.entry_number?.toString() === value);
         next[index].boatId = found?.id ?? null;
         if (found) next[index].sailInput = found.sail_number;
       }
@@ -230,7 +237,35 @@ export default function RaceResultPage() {
   async function handleSaveFinish() {
     setError(""); setMessage("");
 
-    // Build payload map: boatId → item
+    // Detect duplicate boat assignments across finish rows
+    const seenBoatIds = new Set<number>();
+    const dupBoatIds  = new Set<number>();
+    finishRows.forEach((row) => {
+      if (row.boatId !== null) {
+        if (seenBoatIds.has(row.boatId)) dupBoatIds.add(row.boatId);
+        else seenBoatIds.add(row.boatId);
+      }
+    });
+    if (dupBoatIds.size > 0) {
+      const names = Array.from(dupBoatIds)
+        .map((id) => boats.find((b) => b.id === id)?.sail_number ?? String(id))
+        .join(", ");
+      setError(`同じ艇が複数の着順行に入力されています: ${names}`);
+      return;
+    }
+
+    // Validate penalty entries that require finish_position
+    const NEEDS_POS_CODES = new Set(["STP", "SCP", "ARB", "PRP", "ZFP"]);
+    const badPenalty = penaltyEntries.filter(
+      (e) => e.boatId !== null && NEEDS_POS_CODES.has(e.resultCode) && !e.finishPosition
+    );
+    if (badPenalty.length > 0) {
+      const codes = badPenalty.map((e) => `${boats.find((b) => b.id === e.boatId)?.sail_number ?? "?"} (${e.resultCode})`).join(", ");
+      setError(`以下の艇には着順の入力が必要です: ${codes}`);
+      return;
+    }
+
+    // Build payload map: boatId → item (penalty overrides finish position)
     const payload = new Map<number, any>();
 
     finishRows.forEach((row, i) => {
@@ -386,13 +421,6 @@ export default function RaceResultPage() {
     width: w ?? "80px",
     outline: "none",
     backgroundColor: WHITE,
-  });
-
-  const disabledInpStyle = (w?: string): React.CSSProperties => ({
-    ...inpStyle(w),
-    backgroundColor: "#f1f5f9",
-    border: `1px solid ${BORDER}`,
-    color: MUTED,
   });
 
   const handleSave = activeTab === "finish" ? handleSaveFinish : handleSaveBoat;
