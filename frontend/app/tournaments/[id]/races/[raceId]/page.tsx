@@ -1,7 +1,6 @@
 "use client";
 
 import { apiFetch, API_BASE } from "@/lib/api";
-
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import TournamentNav from "../../../../components/TournamentNav";
@@ -16,9 +15,9 @@ type Tournament = {
 type Boat = {
   id: number;
   tournament_id: number;
-  boat_number: string;
+  boat_number: string | null;
   sail_number: string;
-  organization_name: string;
+  organization_name: string | null;
   helmsman_name?: string | null;
   crew_name?: string | null;
   notes?: string | null;
@@ -38,13 +37,15 @@ type RaceResultRow = {
   boat_id: number;
   finish_position: string;
   result_code: string;
+  manual_points: string;
   note: string;
   points?: number | null;
 };
 
-const KEEPS_FINISH_POS = new Set(["OK", "DSQ", "NSC"]);
-const resultOptions = ["OK", "DNS", "DNF", "DSQ", "NSC", "OCS", "RET", "DNE", "UFD", "BFD", "DNC"];
-const QUICK_CODES = ["DNS", "DNF", "OCS", "RET", "DNE", "DSQ", "NSC"] as const;
+const NEEDS_FINISH_POS = new Set(["OK", "DSQ", "NSC", "STP", "SCP", "ARB", "PRP", "ZFP"]);
+const MANUAL_CODES = new Set(["RDG", "DPI"]);
+const ROW1_CODES = ["DNS", "DNC", "OCS", "DNF", "RET", "BFD", "UFD"] as const;
+const ROW2_CODES = ["DSQ", "NSC", "DNE", "STP", "SCP", "ZFP", "RDG", "DPI"] as const;
 
 const NAV    = "#1F4E78";
 const BORDER = "#e2e8f0";
@@ -78,6 +79,29 @@ export default function RaceResultPage() {
     tournament?.event_template === "TEAM_4_BOATS" ||
     tournament?.event_template === "MULTI_GROUP_HYBRID";
 
+  // Compute validation state
+  const positionMap = new Map<number, number[]>();
+  rows.forEach((row, i) => {
+    if (NEEDS_FINISH_POS.has(row.result_code) && !MANUAL_CODES.has(row.result_code) && row.finish_position) {
+      const pos = Number(row.finish_position);
+      if (!isNaN(pos) && pos > 0) {
+        if (!positionMap.has(pos)) positionMap.set(pos, []);
+        positionMap.get(pos)!.push(i);
+      }
+    }
+  });
+  const duplicatePositions = new Set<number>();
+  positionMap.forEach((indices, pos) => { if (indices.length > 1) duplicatePositions.add(pos); });
+
+  const missingPosRows = new Set<number>();
+  rows.forEach((row, i) => {
+    if ((row.result_code === "DSQ" || row.result_code === "NSC") && !row.finish_position) {
+      missingPosRows.add(i);
+    }
+  });
+
+  const hasWarnings = duplicatePositions.size > 0 || missingPosRows.size > 0;
+
   async function fetchAll() {
     if (!tournamentId || !raceId) return;
     try {
@@ -108,6 +132,7 @@ export default function RaceResultPage() {
           boat_id: boat.id,
           finish_position: existing?.finish_position?.toString() ?? "",
           result_code: existing?.result_code ?? "OK",
+          manual_points: existing?.manual_points?.toString() ?? "",
           note: existing?.note ?? "",
           points: existing?.points ?? null,
         };
@@ -125,23 +150,42 @@ export default function RaceResultPage() {
     setRows((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
-      if (field === "result_code" && !KEEPS_FINISH_POS.has(value)) {
-        next[index].finish_position = "";
+      if (field === "result_code") {
+        if (!NEEDS_FINISH_POS.has(value)) next[index].finish_position = "";
+        if (!MANUAL_CODES.has(value)) next[index].manual_points = "";
       }
       return next;
     });
   }
 
   async function handleSave() {
+    if (hasWarnings) {
+      const warnings: string[] = [];
+      if (duplicatePositions.size > 0) {
+        const dups = Array.from(duplicatePositions).sort((a, b) => a - b).map((p) => `${p}位`).join(", ");
+        warnings.push(`着順が重複しています: ${dups}`);
+      }
+      if (missingPosRows.size > 0) {
+        warnings.push("DSQ / NSC の艇に着順が入力されていません");
+      }
+      const ok = window.confirm(`⚠️ 入力ミスの可能性があります\n\n${warnings.join("\n")}\n\nこのまま保存しますか？`);
+      if (!ok) return;
+    }
+
     setError(""); setMessage(""); setSaving(true);
     try {
       const payload = rows.map((row) => ({
         boat_id: row.boat_id,
-        finish_position: KEEPS_FINISH_POS.has(row.result_code) && row.finish_position
-          ? Number(row.finish_position)
-          : null,
+        finish_position:
+          NEEDS_FINISH_POS.has(row.result_code) && !MANUAL_CODES.has(row.result_code) && row.finish_position
+            ? Number(row.finish_position)
+            : null,
         result_code: row.result_code,
         note: row.note || null,
+        manual_points:
+          MANUAL_CODES.has(row.result_code) && row.manual_points
+            ? Number(row.manual_points)
+            : null,
       }));
       const res = await apiFetch(`/races/${raceId}/results`, {
         method: "PUT",
@@ -154,6 +198,18 @@ export default function RaceResultPage() {
       setSaving(false);
     }
   }
+
+  const codeButtonStyle = (active: boolean): React.CSSProperties => ({
+    padding: "4px 8px",
+    backgroundColor: active ? NAV : "#f1f5f9",
+    color: active ? WHITE : MUTED,
+    border: `1px solid ${active ? NAV : BORDER}`,
+    borderRadius: "5px",
+    cursor: "pointer",
+    fontSize: "11px",
+    fontWeight: active ? "700" : "500",
+    whiteSpace: "nowrap",
+  });
 
   return (
     <>
@@ -190,6 +246,25 @@ export default function RaceResultPage() {
           </button>
         </div>
 
+        {hasWarnings && !loading && rows.length > 0 && (
+          <div style={{
+            backgroundColor: "#fef2f2", border: "1px solid #fca5a5",
+            borderRadius: "8px", padding: "12px 16px", marginBottom: "16px",
+            fontSize: "13px", color: "#dc2626",
+          }}>
+            {duplicatePositions.size > 0 && (
+              <p style={{ margin: "0 0 4px 0" }}>
+                ⚠️ 着順が重複しています: {Array.from(duplicatePositions).sort((a, b) => a - b).map((p) => `${p}位`).join(", ")}
+              </p>
+            )}
+            {missingPosRows.size > 0 && (
+              <p style={{ margin: 0 }}>
+                ⚠️ DSQ / NSC の艇に着順が入力されていません
+              </p>
+            )}
+          </div>
+        )}
+
         {error   && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px", ...CARD, padding: "12px 16px" }}>{error}</p>}
         {message && <p style={{ color: "#0e6657", fontSize: "13px", marginBottom: "12px", ...CARD, padding: "12px 16px" }}>{message}</p>}
 
@@ -205,11 +280,11 @@ export default function RaceResultPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
                 <thead>
                   <tr style={{ backgroundColor: NAV, color: WHITE }}>
-                    {["艇番", "セールNo.", "所属", ...(isTeamEvent ? ["団体名"] : []), "クラス", "着順 / 結果コード", "得点", "備考"].map(h => (
+                    {["艇番", "セールNo.", "所属", ...(isTeamEvent ? ["団体名"] : []), "クラス", "着順 / 結果コード", "得点", "備考"].map((h) => (
                       <th key={h} style={{
                         padding: "12px 14px", textAlign: "left",
                         whiteSpace: "nowrap", fontWeight: "600", fontSize: "13px",
-                        borderRight: `1px solid rgba(255,255,255,0.1)`,
+                        borderRight: "1px solid rgba(255,255,255,0.1)",
                       }}>
                         {h}
                       </th>
@@ -220,20 +295,24 @@ export default function RaceResultPage() {
                   {rows.map((row, index) => {
                     const boat = boats.find((b) => b.id === row.boat_id);
                     if (!boat) return null;
-                    const disableFinishPos = !KEEPS_FINISH_POS.has(row.result_code);
+                    const needsPos = NEEDS_FINISH_POS.has(row.result_code);
+                    const isManual = MANUAL_CODES.has(row.result_code);
                     const isOk = row.result_code === "OK";
                     const rowBg = index % 2 === 0 ? WHITE : "#fafbfc";
+                    const fpNum = Number(row.finish_position);
+                    const isDuplicatePos = needsPos && !isManual && !!row.finish_position && duplicatePositions.has(fpNum);
+                    const isMissingPos = missingPosRows.has(index);
 
                     return (
                       <tr key={row.boat_id} style={{ backgroundColor: rowBg }}>
                         <td style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>
-                          {boat.boat_number}
+                          {boat.boat_number || "-"}
                         </td>
                         <td style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap", fontWeight: "600" }}>
                           {boat.sail_number}
                         </td>
                         <td style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER}` }}>
-                          {boat.organization_name}
+                          {boat.organization_name || "-"}
                         </td>
                         {isTeamEvent && (
                           <td style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>
@@ -243,52 +322,75 @@ export default function RaceResultPage() {
                         <td style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>
                           {boat.boat_class || "-"}
                         </td>
-                        <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}` }}>
-                          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                            <input
-                              type="number"
-                              value={row.finish_position}
-                              disabled={disableFinishPos}
-                              onChange={(e) => updateRow(index, "finish_position", e.target.value)}
-                              style={{
-                                padding: "7px 10px",
-                                border: `1px solid ${disableFinishPos ? "#e2e8f0" : "#94adc8"}`,
-                                borderRadius: "6px",
-                                width: "72px",
-                                fontSize: "14px",
-                                backgroundColor: disableFinishPos ? "#f1f5f9" : WHITE,
-                                color: disableFinishPos ? MUTED : TEXT,
-                                outline: "none",
-                              }}
-                            />
-                            {isOk && (
-                              <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: "600", padding: "3px 8px", borderRadius: "4px", backgroundColor: "#f0fdf4" }}>
-                                OK
-                              </span>
-                            )}
-                            {QUICK_CODES.map((code) => (
-                              <button
-                                key={code}
-                                type="button"
-                                onClick={() => updateRow(index, "result_code", row.result_code === code ? "OK" : code)}
+                        <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, minWidth: "380px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                              <input
+                                type="number"
+                                value={row.finish_position}
+                                disabled={!needsPos || isManual}
+                                onChange={(e) => updateRow(index, "finish_position", e.target.value)}
                                 style={{
-                                  padding: "5px 9px",
-                                  backgroundColor: row.result_code === code ? NAV : "#f1f5f9",
-                                  color: row.result_code === code ? WHITE : MUTED,
-                                  border: `1px solid ${row.result_code === code ? NAV : BORDER}`,
-                                  borderRadius: "5px",
-                                  cursor: "pointer",
-                                  fontSize: "12px",
-                                  fontWeight: row.result_code === code ? "700" : "500",
+                                  padding: "6px 8px",
+                                  border: `1px solid ${isDuplicatePos ? "#dc2626" : isMissingPos ? "#f97316" : (!needsPos || isManual) ? "#e2e8f0" : "#94adc8"}`,
+                                  borderRadius: "6px",
+                                  width: "68px",
+                                  fontSize: "14px",
+                                  backgroundColor: (!needsPos || isManual) ? "#f1f5f9" : WHITE,
+                                  color: (!needsPos || isManual) ? MUTED : TEXT,
+                                  outline: "none",
                                 }}
-                              >
-                                {code}
-                              </button>
-                            ))}
+                              />
+                              {isOk && (
+                                <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: "600", padding: "3px 8px", borderRadius: "4px", backgroundColor: "#f0fdf4" }}>
+                                  OK
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                              {ROW1_CODES.map((code) => (
+                                <button
+                                  key={code}
+                                  type="button"
+                                  onClick={() => updateRow(index, "result_code", row.result_code === code ? "OK" : code)}
+                                  style={codeButtonStyle(row.result_code === code)}
+                                >
+                                  {code}
+                                </button>
+                              ))}
+                            </div>
+                            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                              {ROW2_CODES.map((code) => (
+                                <button
+                                  key={code}
+                                  type="button"
+                                  onClick={() => updateRow(index, "result_code", row.result_code === code ? "OK" : code)}
+                                  style={codeButtonStyle(row.result_code === code)}
+                                >
+                                  {code}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </td>
-                        <td style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER}`, textAlign: "center", whiteSpace: "nowrap" }}>
-                          {row.points != null ? (
+                        <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, textAlign: "center", whiteSpace: "nowrap" }}>
+                          {isManual ? (
+                            <input
+                              type="number"
+                              value={row.manual_points}
+                              onChange={(e) => updateRow(index, "manual_points", e.target.value)}
+                              placeholder="手動"
+                              style={{
+                                padding: "6px 8px",
+                                border: "1px solid #94adc8",
+                                borderRadius: "6px",
+                                width: "68px",
+                                fontSize: "14px",
+                                outline: "none",
+                                textAlign: "center",
+                              }}
+                            />
+                          ) : row.points != null ? (
                             <span style={{ fontWeight: "700", color: NAV }}>{row.points}</span>
                           ) : (
                             <span style={{ color: MUTED }}>-</span>

@@ -205,6 +205,7 @@ class RaceResultInput(BaseModel):
     finish_position: int | None = None
     result_code: str = "OK"
     note: str | None = None
+    manual_points: int | None = None  # RDG / DPI 用手動得点
 
 
 class RaceResultOut(BaseModel):

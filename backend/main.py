@@ -1,4 +1,5 @@
 import os
+import math
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -136,28 +137,48 @@ def calculate_points_for_result(
     rule_config: RuleConfig,
     entries_count: int,
     starters_count: int,
-    ) -> int:
-    if item.result_code == "OK":
-        if item.finish_position is None:
+) -> int:
+    code = item.result_code
+    fp   = item.finish_position
+
+    # 通常フィニッシュ
+    if code == "OK":
+        if fp is None:
             raise HTTPException(status_code=400, detail="OK result requires finish_position")
-        return item.finish_position
+        return fp
 
+    # 手動得点コード（RDG: 裁定による救済、DPI: 任意裁量ペナルティ）
+    if code in ("RDG", "DPI"):
+        return item.manual_points if item.manual_points is not None else 0
+
+    # 標準ペナルティテーブルコード
     rule_map = {
-        "DNC": rule_config.dnc_rule,
-        "DNS": rule_config.dns_rule,
-        "OCS": rule_config.ocs_rule,
-        "DNF": rule_config.dnf_rule,
-        "RET": rule_config.ret_rule,
-        "DSQ": rule_config.dsq_rule,
-        "UFD": rule_config.ufd_rule,
-        "BFD": rule_config.bfd_rule,
+        "DNC": rule_config.dnc_rule,   # 出場エリアに来なかった
+        "DNS": rule_config.dns_rule,   # スタートしなかった
+        "OCS": rule_config.ocs_rule,   # スタートライン越え
+        "DNF": rule_config.dnf_rule,   # フィニッシュしなかった
+        "RET": rule_config.ret_rule,   # リタイア
+        "DSQ": rule_config.dsq_rule,   # 失格
+        "UFD": rule_config.ufd_rule,   # Uフラッグ失格
+        "BFD": rule_config.bfd_rule,   # 黒旗失格
+        "NSC": rule_config.dsq_rule,   # コースを航走しなかった（DSQ同等）
+        "DNE": rule_config.dsq_rule,   # 除外不能な失格（DSQ同等）
     }
+    if code in rule_map:
+        return apply_scoring_rule(rule_map[code], entries_count, starters_count)
 
-    rule_name = rule_map.get(item.result_code)
-    if rule_name is None:
-        raise HTTPException(status_code=400, detail=f"Unsupported result_code: {item.result_code}")
+    # 着順ベースのペナルティコード（fp 必須）
+    if fp is None:
+        raise HTTPException(status_code=400, detail=f"{code} requires finish_position")
 
-    return apply_scoring_rule(rule_name, entries_count, starters_count)
+    if code == "STP":                        # 標準ペナルティ +3点
+        return fp + 3
+    if code in ("SCP", "ARB", "PRP"):        # 各種ペナルティ ×1.3 切り上げ
+        return math.ceil(fp * 1.3)
+    if code == "ZFP":                        # 規則30.2 ×1.2 切り上げ
+        return math.ceil(fp * 1.2)
+
+    raise HTTPException(status_code=400, detail=f"Unsupported result_code: {code}")
 
 def calculate_individual_standings(tournament_id: int, db: Session):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
