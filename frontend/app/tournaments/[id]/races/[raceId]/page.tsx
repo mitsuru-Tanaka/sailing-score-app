@@ -529,7 +529,7 @@ export default function RaceResultPage() {
           <div>
             {/* Class tabs */}
             {classes.length > 0 && (
-              <div style={{ display: "flex", gap: "2px", marginBottom: "0", borderBottom: `2px solid ${BORDER}`, marginBottom: "20px" }}>
+              <div style={{ display: "flex", gap: "2px", borderBottom: `2px solid ${BORDER}`, marginBottom: "20px" }}>
                 {classes.map((cls) => {
                   const clsBoats = boats.filter((b) => b.boat_class === cls);
                   const s = classSlots[cls] ?? emptySlot();
