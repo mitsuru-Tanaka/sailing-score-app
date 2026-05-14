@@ -140,6 +140,9 @@ class RuleConfig(Base):
     dsq_rule = Column(String, nullable=False, default="STARTERS_PLUS_1")
     ufd_rule = Column(String, nullable=False, default="ENTRIES_PLUS_1")
     bfd_rule = Column(String, nullable=False, default="ENTRIES_PLUS_1")
+    nsc_rule = Column(String, nullable=False, default="STARTERS_PLUS_1")
+    dne_rule = Column(String, nullable=False, default="STARTERS_PLUS_1")
+    custom_result_codes = Column(String, nullable=True)
 
 
 class Race(Base):

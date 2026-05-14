@@ -10,6 +10,7 @@ type Tournament = {
   name: string;
   event_template: string;
   class_name?: string | null;
+  class_config?: string | null;
 };
 
 type Boat = {
@@ -49,7 +50,9 @@ type PenaltyEntry = {
   note: string;
 };
 
-// ---- Tab 2: per-boat entry (existing) ----
+type ClassSlot = { finish: FinishRow[]; penalties: PenaltyEntry[] };
+
+// ---- Tab 2: per-boat entry ----
 type BoatResultRow = {
   boat_id: number;
   finish_position: string;
@@ -79,15 +82,15 @@ const CARD: React.CSSProperties = {
 
 let penaltyKeyCounter = 0;
 function newPenaltyEntry(): PenaltyEntry {
-  return {
-    key: String(++penaltyKeyCounter),
-    boatId: null,
-    resultCode: "DNS",
-    finishPosition: "",
-    manualPoints: "",
-    note: "",
-  };
+  return { key: String(++penaltyKeyCounter), boatId: null, resultCode: "DNS", finishPosition: "", manualPoints: "", note: "" };
 }
+
+function parseClassConfig(cfg: string | null | undefined): string[] {
+  if (!cfg) return [];
+  return cfg.split(",").map(s => s.trim()).filter(Boolean).map(e => e.startsWith("OTHER:") ? e.slice(6) : e);
+}
+
+const emptySlot = (): ClassSlot => ({ finish: [], penalties: [] });
 
 export default function RaceResultPage() {
   const params = useParams();
@@ -103,28 +106,42 @@ export default function RaceResultPage() {
   const [message,    setMessage]    = useState("");
   const [activeTab,  setActiveTab]  = useState<"finish" | "boat">("finish");
 
-  // Tab 1
-  const [finishRows,     setFinishRows]     = useState<FinishRow[]>([]);
-  const [penaltyEntries, setPenaltyEntries] = useState<PenaltyEntry[]>([]);
+  // Per-class finish state
+  const [classSlots,   setClassSlots]   = useState<Record<string, ClassSlot>>({});
+  const [activeClass,  setActiveClass]  = useState<string>("ALL");
+  const [customCodes,  setCustomCodes]  = useState<string[]>([]);
 
   // Tab 2
   const [boatRows, setBoatRows] = useState<BoatResultRow[]>([]);
+
+  const classes = parseClassConfig(tournament?.class_config);
 
   const isTeamEvent =
     tournament?.event_template === "TEAM_3_BOATS" ||
     tournament?.event_template === "TEAM_4_BOATS" ||
     tournament?.event_template === "MULTI_GROUP_HYBRID";
 
+  // Current class slot (derived)
+  const slot        = classSlots[activeClass] ?? emptySlot();
+  const finishRows  = slot.finish;
+  const penaltyEntries = slot.penalties;
+
+  // Active boats for autocomplete / validation
+  const activeBoats = activeClass === "ALL"
+    ? boats
+    : boats.filter((b) => b.boat_class === activeClass);
+
   async function fetchAll() {
     if (!tournamentId || !raceId) return;
     try {
       setLoading(true);
       setError("");
-      const [tRes, racesRes, boatsRes, resultsRes] = await Promise.all([
+      const [tRes, racesRes, boatsRes, resultsRes, rulesRes] = await Promise.all([
         apiFetch(`/tournaments/${tournamentId}`),
         apiFetch(`/tournaments/${tournamentId}/races`),
         apiFetch(`/tournaments/${tournamentId}/boats`),
         apiFetch(`/races/${raceId}/results`),
+        apiFetch(`/tournaments/${tournamentId}/rules`),
       ]);
       if (!tRes.ok)       throw new Error("大会情報の取得に失敗しました");
       if (!racesRes.ok)   throw new Error("レース一覧の取得に失敗しました");
@@ -135,31 +152,59 @@ export default function RaceResultPage() {
       const racesData: Race[]  = await racesRes.json();
       const boatsData: Boat[]  = await boatsRes.json();
       const resultsData: any[] = await resultsRes.json();
+      const rulesData          = rulesRes.ok ? await rulesRes.json() : null;
 
       setTournament(tData);
       setRace(racesData.find((r) => String(r.id) === String(raceId)) || null);
       setBoats(boatsData);
 
-      // ---- populate Tab 1 ----
-      const newFinishRows: FinishRow[] = boatsData.map(() => ({
-        boatId: null, sailInput: "", entryInput: "",
-      }));
-      const newPenaltyEntries: PenaltyEntry[] = [];
+      // Parse custom codes
+      const customList: string[] = rulesData?.custom_result_codes
+        ? rulesData.custom_result_codes.split(",").map((s: string) => s.trim()).filter(Boolean)
+        : [];
+      setCustomCodes(customList);
 
+      // Parse classes
+      const cls = parseClassConfig(tData.class_config);
+
+      // Build initial slots
+      const newSlots: Record<string, ClassSlot> = {};
+      if (cls.length === 0) {
+        newSlots["ALL"] = {
+          finish: boatsData.map(() => ({ boatId: null, sailInput: "", entryInput: "" })),
+          penalties: [],
+        };
+        setActiveClass("ALL");
+      } else {
+        for (const c of cls) {
+          const cb = boatsData.filter((b) => b.boat_class === c);
+          newSlots[c] = {
+            finish: cb.map(() => ({ boatId: null, sailInput: "", entryInput: "" })),
+            penalties: [],
+          };
+        }
+        setActiveClass((prev) => cls.includes(prev) ? prev : cls[0]);
+      }
+
+      // Populate from existing results
       resultsData.forEach((result: any) => {
         const boat = boatsData.find((b) => b.id === result.boat_id);
         if (!boat) return;
+        const targetClass = cls.length === 0 ? "ALL" : (boat.boat_class ?? cls[0]);
+        const s = newSlots[targetClass];
+        if (!s) return;
+
         if (result.result_code === "OK" && result.finish_position != null) {
           const idx = result.finish_position - 1;
-          if (idx >= 0 && idx < newFinishRows.length) {
-            newFinishRows[idx] = {
+          if (idx >= 0 && idx < s.finish.length) {
+            s.finish[idx] = {
               boatId: boat.id,
               sailInput: boat.sail_number,
               entryInput: boat.entry_number?.toString() ?? "",
             };
           }
         } else if (result.result_code !== "OK") {
-          newPenaltyEntries.push({
+          s.penalties.push({
             key: String(++penaltyKeyCounter),
             boatId: boat.id,
             resultCode: result.result_code,
@@ -169,10 +214,9 @@ export default function RaceResultPage() {
           });
         }
       });
-      setFinishRows(newFinishRows);
-      setPenaltyEntries(newPenaltyEntries);
+      setClassSlots(newSlots);
 
-      // ---- populate Tab 2 ----
+      // Tab 2
       setBoatRows(boatsData.map((boat) => {
         const existing = resultsData.find((r: any) => r.boat_id === boat.id);
         return {
@@ -193,117 +237,117 @@ export default function RaceResultPage() {
 
   useEffect(() => { fetchAll(); }, [tournamentId, raceId]);
 
+  // ---- slot patch helper ----
+  function patchSlot(cls: string, patch: Partial<ClassSlot>) {
+    setClassSlots((prev) => ({
+      ...prev,
+      [cls]: { ...(prev[cls] ?? emptySlot()), ...patch },
+    }));
+  }
+
   // ---- Tab 1 helpers ----
   function updateFinishRow(index: number, field: "sailInput" | "entryInput", value: string) {
-    setFinishRows((prev) => {
-      const next = [...prev];
+    setClassSlots((prev) => {
+      const current = prev[activeClass] ?? emptySlot();
+      const next = [...current.finish];
       next[index] = { ...next[index], [field]: value };
       if (field === "sailInput") {
         const found = value
-          ? boats.find((b) => b.sail_number.toLowerCase() === value.toLowerCase())
+          ? activeBoats.find((b) => b.sail_number.toLowerCase() === value.toLowerCase())
           : undefined;
         next[index].boatId = found?.id ?? null;
         if (found) {
-          next[index].sailInput  = found.sail_number; // normalize to stored case
+          next[index].sailInput  = found.sail_number;
           next[index].entryInput = found.entry_number?.toString() ?? "";
         } else if (!value) {
           next[index].entryInput = "";
         }
       } else {
-        if (!value) return next; // clearing entryInput – keep boatId from sailInput
-        const found = boats.find((b) => b.entry_number?.toString() === value);
+        if (!value) return { ...prev, [activeClass]: { ...current, finish: next } };
+        const found = activeBoats.find((b) => b.entry_number?.toString() === value);
         next[index].boatId = found?.id ?? null;
         if (found) next[index].sailInput = found.sail_number;
       }
-      return next;
+      return { ...prev, [activeClass]: { ...current, finish: next } };
     });
   }
 
   function addPenaltyEntry() {
-    setPenaltyEntries((prev) => [...prev, newPenaltyEntry()]);
+    const current = classSlots[activeClass] ?? emptySlot();
+    patchSlot(activeClass, { penalties: [...current.penalties, newPenaltyEntry()] });
   }
 
   function updatePenaltyEntry(key: string, patch: Partial<PenaltyEntry>) {
-    setPenaltyEntries((prev) =>
-      prev.map((e) => (e.key === key ? { ...e, ...patch } : e))
-    );
+    const current = classSlots[activeClass] ?? emptySlot();
+    patchSlot(activeClass, { penalties: current.penalties.map((e) => e.key === key ? { ...e, ...patch } : e) });
   }
 
   function removePenaltyEntry(key: string) {
-    setPenaltyEntries((prev) => prev.filter((e) => e.key !== key));
+    const current = classSlots[activeClass] ?? emptySlot();
+    patchSlot(activeClass, { penalties: current.penalties.filter((e) => e.key !== key) });
   }
 
   // ---- Tab 1 save ----
   async function handleSaveFinish() {
     setError(""); setMessage("");
 
-    // Detect duplicate boat assignments across finish rows
-    const seenBoatIds = new Set<number>();
-    const dupBoatIds  = new Set<number>();
-    finishRows.forEach((row) => {
-      if (row.boatId !== null) {
-        if (seenBoatIds.has(row.boatId)) dupBoatIds.add(row.boatId);
-        else seenBoatIds.add(row.boatId);
+    // Validate each class slot for duplicates and missing positions
+    for (const [cls, s] of Object.entries(classSlots)) {
+      const seenIds  = new Set<number>();
+      const dupIds   = new Set<number>();
+      s.finish.forEach((row) => {
+        if (row.boatId !== null) {
+          if (seenIds.has(row.boatId)) dupIds.add(row.boatId);
+          else seenIds.add(row.boatId);
+        }
+      });
+      if (dupIds.size > 0) {
+        const names = Array.from(dupIds).map((id) => boats.find((b) => b.id === id)?.sail_number ?? String(id)).join(", ");
+        setError(`[${cls}] 同じ艇が複数の着順行に入力されています: ${names}`);
+        return;
       }
-    });
-    if (dupBoatIds.size > 0) {
-      const names = Array.from(dupBoatIds)
-        .map((id) => boats.find((b) => b.id === id)?.sail_number ?? String(id))
-        .join(", ");
-      setError(`同じ艇が複数の着順行に入力されています: ${names}`);
-      return;
+
+      const NEEDS_POS_CODES = new Set(["STP", "SCP", "ARB", "PRP", "ZFP"]);
+      const badPenalty = s.penalties.filter(
+        (e) => e.boatId !== null && NEEDS_POS_CODES.has(e.resultCode) && !e.finishPosition
+      );
+      if (badPenalty.length > 0) {
+        const codes = badPenalty.map((e) => `${boats.find((b) => b.id === e.boatId)?.sail_number ?? "?"} (${e.resultCode})`).join(", ");
+        setError(`[${cls}] 以下の艇には着順の入力が必要です: ${codes}`);
+        return;
+      }
     }
 
-    // Validate penalty entries that require finish_position
-    const NEEDS_POS_CODES = new Set(["STP", "SCP", "ARB", "PRP", "ZFP"]);
-    const badPenalty = penaltyEntries.filter(
-      (e) => e.boatId !== null && NEEDS_POS_CODES.has(e.resultCode) && !e.finishPosition
-    );
-    if (badPenalty.length > 0) {
-      const codes = badPenalty.map((e) => `${boats.find((b) => b.id === e.boatId)?.sail_number ?? "?"} (${e.resultCode})`).join(", ");
-      setError(`以下の艇には着順の入力が必要です: ${codes}`);
-      return;
-    }
-
-    // Build payload map: boatId → item (penalty overrides finish position)
+    // Build payload from all class slots
     const payload = new Map<number, any>();
 
-    finishRows.forEach((row, i) => {
-      if (row.boatId !== null) {
-        payload.set(row.boatId, {
-          boat_id: row.boatId,
-          finish_position: i + 1,
-          result_code: "OK",
-          note: null,
-          manual_points: null,
-        });
-      }
-    });
-
-    penaltyEntries.forEach((entry) => {
-      if (entry.boatId !== null) {
-        payload.set(entry.boatId, {
-          boat_id: entry.boatId,
-          finish_position:
-            NEEDS_FINISH_POS.has(entry.resultCode) && !MANUAL_CODES.has(entry.resultCode) && entry.finishPosition
-              ? Number(entry.finishPosition)
-              : null,
-          result_code: entry.resultCode,
-          note: entry.note || null,
-          manual_points:
-            MANUAL_CODES.has(entry.resultCode) && entry.manualPoints
-              ? Number(entry.manualPoints)
-              : null,
-        });
-      }
+    Object.values(classSlots).forEach((s) => {
+      s.finish.forEach((row, i) => {
+        if (row.boatId !== null) {
+          payload.set(row.boatId, { boat_id: row.boatId, finish_position: i + 1, result_code: "OK", note: null, manual_points: null });
+        }
+      });
+      s.penalties.forEach((entry) => {
+        if (entry.boatId !== null) {
+          payload.set(entry.boatId, {
+            boat_id: entry.boatId,
+            finish_position:
+              NEEDS_FINISH_POS.has(entry.resultCode) && !MANUAL_CODES.has(entry.resultCode) && entry.finishPosition
+                ? Number(entry.finishPosition) : null,
+            result_code: entry.resultCode,
+            note: entry.note || null,
+            manual_points:
+              MANUAL_CODES.has(entry.resultCode) && entry.manualPoints
+                ? Number(entry.manualPoints) : null,
+          });
+        }
+      });
     });
 
     const unassigned = boats.filter((b) => !payload.has(b.id));
     if (unassigned.length > 0) {
       const names = unassigned.map((b) => b.sail_number).join(", ");
-      const ok = window.confirm(
-        `以下の${unassigned.length}艇が未入力です:\n${names}\n\nこれらの艇の結果は保存されません。続けますか？`
-      );
+      const ok = window.confirm(`以下の${unassigned.length}艇が未入力です:\n${names}\n\nこれらの艇の結果は保存されません。続けますか？`);
       if (!ok) return;
     }
 
@@ -321,7 +365,7 @@ export default function RaceResultPage() {
     }
   }
 
-  // ---- Tab 2 helpers (same as before) ----
+  // ---- Tab 2 helpers ----
   function updateBoatRow(index: number, field: keyof BoatResultRow, value: string) {
     setBoatRows((prev) => {
       const next = [...prev];
@@ -334,7 +378,6 @@ export default function RaceResultPage() {
     });
   }
 
-  // Tab 2 validation
   const boatPosMap = new Map<number, number[]>();
   boatRows.forEach((row, i) => {
     if (NEEDS_FINISH_POS.has(row.result_code) && !MANUAL_CODES.has(row.result_code) && row.finish_position) {
@@ -349,8 +392,7 @@ export default function RaceResultPage() {
   boatPosMap.forEach((idxs, pos) => { if (idxs.length > 1) dupBoatPositions.add(pos); });
   const missingPosRows = new Set<number>();
   boatRows.forEach((row, i) => {
-    if ((row.result_code === "DSQ" || row.result_code === "NSC") && !row.finish_position)
-      missingPosRows.add(i);
+    if ((row.result_code === "DSQ" || row.result_code === "NSC") && !row.finish_position) missingPosRows.add(i);
   });
   const hasBoatWarnings = dupBoatPositions.size > 0 || missingPosRows.size > 0;
 
@@ -389,7 +431,7 @@ export default function RaceResultPage() {
     }
   }
 
-  // ---- shared style helpers ----
+  // ---- style helpers ----
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: "8px 20px",
     backgroundColor: active ? NAV : WHITE,
@@ -399,6 +441,18 @@ export default function RaceResultPage() {
     cursor: "pointer",
     fontWeight: active ? "700" : "500",
     fontSize: "14px",
+  });
+
+  const classBtnStyle = (active: boolean): React.CSSProperties => ({
+    padding: "6px 18px",
+    backgroundColor: active ? NAV : "#f1f5f9",
+    color: active ? WHITE : TEXT,
+    border: `1px solid ${active ? NAV : BORDER}`,
+    borderRadius: "6px 6px 0 0",
+    cursor: "pointer",
+    fontWeight: active ? "700" : "500",
+    fontSize: "13px",
+    borderBottom: active ? `2px solid ${NAV}` : `1px solid ${BORDER}`,
   });
 
   const codeBtn = (active: boolean): React.CSSProperties => ({
@@ -424,6 +478,9 @@ export default function RaceResultPage() {
   });
 
   const handleSave = activeTab === "finish" ? handleSaveFinish : handleSaveBoat;
+
+  // datalist boats filtered by active class
+  const datalistBoats = activeClass === "ALL" ? boats : boats.filter((b) => b.boat_class === activeClass);
 
   return (
     <>
@@ -470,12 +527,31 @@ export default function RaceResultPage() {
 
           /* ======= Tab 1: finish-order entry ======= */
           <div>
-            {/* datalists for auto-complete */}
+            {/* Class tabs */}
+            {classes.length > 0 && (
+              <div style={{ display: "flex", gap: "2px", marginBottom: "0", borderBottom: `2px solid ${BORDER}`, marginBottom: "20px" }}>
+                {classes.map((cls) => {
+                  const clsBoats = boats.filter((b) => b.boat_class === cls);
+                  const s = classSlots[cls] ?? emptySlot();
+                  const assigned = s.finish.filter((r) => r.boatId !== null).length + s.penalties.filter((e) => e.boatId !== null).length;
+                  return (
+                    <button key={cls} onClick={() => setActiveClass(cls)} style={classBtnStyle(activeClass === cls)}>
+                      {cls}
+                      <span style={{ marginLeft: "6px", fontSize: "11px", opacity: 0.7 }}>
+                        {assigned}/{clsBoats.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* datalists */}
             <datalist id="sail-list">
-              {boats.map((b) => <option key={b.id} value={b.sail_number} />)}
+              {datalistBoats.map((b) => <option key={b.id} value={b.sail_number} />)}
             </datalist>
             <datalist id="entry-list">
-              {boats.filter((b) => b.entry_number != null).map((b) => (
+              {datalistBoats.filter((b) => b.entry_number != null).map((b) => (
                 <option key={b.id} value={String(b.entry_number)} />
               ))}
             </datalist>
@@ -496,9 +572,8 @@ export default function RaceResultPage() {
                   <tbody>
                     {finishRows.map((row, i) => {
                       const boat = row.boatId !== null ? boats.find((b) => b.id === row.boatId) : undefined;
-                      const rowBg = i % 2 === 0 ? WHITE : "#fafbfc";
                       return (
-                        <tr key={i} style={{ backgroundColor: rowBg }}>
+                        <tr key={i} style={{ backgroundColor: i % 2 === 0 ? WHITE : "#fafbfc" }}>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, fontWeight: "700", color: NAV, width: "52px" }}>
                             {i + 1}
                           </td>
@@ -537,7 +612,10 @@ export default function RaceResultPage() {
             {/* Penalty section */}
             <div style={{ ...CARD, marginBottom: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <h2 style={{ fontSize: "15px", fontWeight: "700", color: TEXT, margin: 0 }}>ペナルティ・特殊コード</h2>
+                <h2 style={{ fontSize: "15px", fontWeight: "700", color: TEXT, margin: 0 }}>
+                  ペナルティ・特殊コード
+                  {classes.length > 0 && <span style={{ fontSize: "12px", color: MUTED, fontWeight: "400", marginLeft: "8px" }}>({activeClass})</span>}
+                </h2>
                 <button
                   onClick={addPenaltyEntry}
                   style={{ padding: "6px 14px", backgroundColor: "#f1f5f9", color: TEXT, border: `1px solid ${BORDER}`, borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}
@@ -556,7 +634,7 @@ export default function RaceResultPage() {
                     const entryBoat = entry.boatId ? boats.find((b) => b.id === entry.boatId) : undefined;
                     return (
                       <div key={entry.key} style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px", backgroundColor: "#f8fafc", borderRadius: "8px", border: `1px solid ${BORDER}`, flexWrap: "wrap" }}>
-                        {/* Boat selector */}
+                        {/* Boat selector — filtered by active class */}
                         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                           <span style={{ fontSize: "11px", color: MUTED, fontWeight: "600" }}>艇</span>
                           <select
@@ -565,7 +643,7 @@ export default function RaceResultPage() {
                             style={{ padding: "6px 8px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "13px", outline: "none", minWidth: "200px", backgroundColor: WHITE }}
                           >
                             <option value="">艇を選択...</option>
-                            {boats.map((b) => (
+                            {activeBoats.map((b) => (
                               <option key={b.id} value={b.id}>
                                 {b.sail_number}{b.entry_number != null ? ` (${b.entry_number})` : ""}{b.organization_name ? ` — ${b.organization_name}` : ""}
                               </option>
@@ -589,48 +667,34 @@ export default function RaceResultPage() {
                               <button key={code} type="button" onClick={() => updatePenaltyEntry(entry.key, { resultCode: code })} style={codeBtn(entry.resultCode === code)}>{code}</button>
                             ))}
                           </div>
+                          {customCodes.length > 0 && (
+                            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                              {customCodes.map((code) => (
+                                <button key={code} type="button" onClick={() => updatePenaltyEntry(entry.key, { resultCode: code })} style={{ ...codeBtn(entry.resultCode === code), backgroundColor: entry.resultCode === code ? "#7c3aed" : "#f5f3ff", borderColor: entry.resultCode === code ? "#7c3aed" : "#c4b5fd", color: entry.resultCode === code ? WHITE : "#7c3aed" }}>{code}</button>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
-                        {/* Position / manual points */}
                         {needsPos && (
                           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                             <span style={{ fontSize: "11px", color: MUTED, fontWeight: "600" }}>着順</span>
-                            <input
-                              type="number"
-                              value={entry.finishPosition}
-                              onChange={(e) => updatePenaltyEntry(entry.key, { finishPosition: e.target.value })}
-                              style={inpStyle("72px")}
-                            />
+                            <input type="number" value={entry.finishPosition} onChange={(e) => updatePenaltyEntry(entry.key, { finishPosition: e.target.value })} style={inpStyle("72px")} />
                           </div>
                         )}
                         {isManual && (
                           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                             <span style={{ fontSize: "11px", color: MUTED, fontWeight: "600" }}>得点（手動）</span>
-                            <input
-                              type="number"
-                              value={entry.manualPoints}
-                              onChange={(e) => updatePenaltyEntry(entry.key, { manualPoints: e.target.value })}
-                              style={inpStyle("72px")}
-                            />
+                            <input type="number" value={entry.manualPoints} onChange={(e) => updatePenaltyEntry(entry.key, { manualPoints: e.target.value })} style={inpStyle("72px")} />
                           </div>
                         )}
 
-                        {/* Note */}
                         <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: "1", minWidth: "120px" }}>
                           <span style={{ fontSize: "11px", color: MUTED, fontWeight: "600" }}>備考</span>
-                          <input
-                            type="text"
-                            value={entry.note}
-                            onChange={(e) => updatePenaltyEntry(entry.key, { note: e.target.value })}
-                            style={{ ...inpStyle("100%"), width: "100%" }}
-                          />
+                          <input type="text" value={entry.note} onChange={(e) => updatePenaltyEntry(entry.key, { note: e.target.value })} style={{ ...inpStyle("100%"), width: "100%" }} />
                         </div>
 
-                        {/* Remove */}
-                        <button
-                          onClick={() => removePenaltyEntry(entry.key)}
-                          style={{ marginTop: "20px", padding: "6px 10px", backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}
-                        >
+                        <button onClick={() => removePenaltyEntry(entry.key)} style={{ marginTop: "20px", padding: "6px 10px", backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>
                           削除
                         </button>
                       </div>
@@ -640,12 +704,12 @@ export default function RaceResultPage() {
               )}
             </div>
 
-            {/* Unassigned boats warning */}
+            {/* Unassigned boats warning (active class only) */}
             {(() => {
               const assignedIds = new Set<number>();
               finishRows.forEach((r) => { if (r.boatId) assignedIds.add(r.boatId); });
               penaltyEntries.forEach((e) => { if (e.boatId) assignedIds.add(e.boatId); });
-              const unassigned = boats.filter((b) => !assignedIds.has(b.id));
+              const unassigned = activeBoats.filter((b) => !assignedIds.has(b.id));
               if (unassigned.length === 0) return null;
               return (
                 <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "8px", padding: "12px 16px", fontSize: "13px", color: "#92400e", marginBottom: "20px" }}>
@@ -706,13 +770,7 @@ export default function RaceResultPage() {
                                   value={row.finish_position}
                                   disabled={!needsPos || isManual}
                                   onChange={(e) => updateBoatRow(index, "finish_position", e.target.value)}
-                                  style={{
-                                    padding: "6px 8px",
-                                    border: `1px solid ${isDupPos ? "#dc2626" : isMissPos ? "#f97316" : (!needsPos || isManual) ? "#e2e8f0" : "#94adc8"}`,
-                                    borderRadius: "6px", width: "68px", fontSize: "14px",
-                                    backgroundColor: (!needsPos || isManual) ? "#f1f5f9" : WHITE,
-                                    color: (!needsPos || isManual) ? MUTED : TEXT, outline: "none",
-                                  }}
+                                  style={{ padding: "6px 8px", border: `1px solid ${isDupPos ? "#dc2626" : isMissPos ? "#f97316" : (!needsPos || isManual) ? "#e2e8f0" : "#94adc8"}`, borderRadius: "6px", width: "68px", fontSize: "14px", backgroundColor: (!needsPos || isManual) ? "#f1f5f9" : WHITE, color: (!needsPos || isManual) ? MUTED : TEXT, outline: "none" }}
                                 />
                                 {isOk && <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: "600", padding: "3px 8px", borderRadius: "4px", backgroundColor: "#f0fdf4" }}>OK</span>}
                               </div>
@@ -726,12 +784,18 @@ export default function RaceResultPage() {
                                   <button key={code} type="button" onClick={() => updateBoatRow(index, "result_code", row.result_code === code ? "OK" : code)} style={codeBtn(row.result_code === code)}>{code}</button>
                                 ))}
                               </div>
+                              {customCodes.length > 0 && (
+                                <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                                  {customCodes.map((code) => (
+                                    <button key={code} type="button" onClick={() => updateBoatRow(index, "result_code", row.result_code === code ? "OK" : code)} style={{ ...codeBtn(row.result_code === code), backgroundColor: row.result_code === code ? "#7c3aed" : "#f5f3ff", borderColor: row.result_code === code ? "#7c3aed" : "#c4b5fd", color: row.result_code === code ? WHITE : "#7c3aed" }}>{code}</button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, textAlign: "center", whiteSpace: "nowrap" }}>
                             {isManual ? (
-                              <input type="number" value={row.manual_points} onChange={(e) => updateBoatRow(index, "manual_points", e.target.value)} placeholder="手動"
-                                style={{ padding: "6px 8px", border: "1px solid #94adc8", borderRadius: "6px", width: "68px", fontSize: "14px", outline: "none", textAlign: "center" }} />
+                              <input type="number" value={row.manual_points} onChange={(e) => updateBoatRow(index, "manual_points", e.target.value)} placeholder="手動" style={{ padding: "6px 8px", border: "1px solid #94adc8", borderRadius: "6px", width: "68px", fontSize: "14px", outline: "none", textAlign: "center" }} />
                             ) : row.points != null ? (
                               <span style={{ fontWeight: "700", color: NAV }}>{row.points}</span>
                             ) : (
@@ -739,8 +803,7 @@ export default function RaceResultPage() {
                             )}
                           </td>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}` }}>
-                            <input type="text" value={row.note} onChange={(e) => updateBoatRow(index, "note", e.target.value)}
-                              style={{ padding: "7px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", width: "100%", fontSize: "13px", outline: "none", backgroundColor: WHITE }} />
+                            <input type="text" value={row.note} onChange={(e) => updateBoatRow(index, "note", e.target.value)} style={{ padding: "7px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", width: "100%", fontSize: "13px", outline: "none", backgroundColor: WHITE }} />
                           </td>
                         </tr>
                       );

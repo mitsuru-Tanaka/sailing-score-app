@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -22,6 +22,9 @@ type RuleConfig = {
   dsq_rule: string;
   ufd_rule: string;
   bfd_rule: string;
+  nsc_rule: string;
+  dne_rule: string;
+  custom_result_codes?: string | null;
 };
 
 const ruleOptions = ["STARTERS_PLUS_1", "ENTRIES_PLUS_1"];
@@ -73,7 +76,11 @@ export default function RulesPage() {
     dsq_rule: "STARTERS_PLUS_1",
     ufd_rule: "ENTRIES_PLUS_1",
     bfd_rule: "ENTRIES_PLUS_1",
+    nsc_rule: "STARTERS_PLUS_1",
+    dne_rule: "STARTERS_PLUS_1",
   });
+  const [customCodes, setCustomCodes] = useState<string[]>([]);
+  const [newCodeInput, setNewCodeInput] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -91,8 +98,8 @@ export default function RulesPage() {
   useEffect(() => {
     async function load() {
       const [tRes, rRes] = await Promise.all([
-        fetch(`${API_BASE}/tournaments/${tournamentId}`),
-        fetch(`${API_BASE}/tournaments/${tournamentId}/rules`),
+        apiFetch(`/tournaments/${tournamentId}`),
+        apiFetch(`/tournaments/${tournamentId}/rules`),
       ]);
       if (tRes.ok) {
         const t = await tRes.json();
@@ -114,7 +121,14 @@ export default function RulesPage() {
         dsq_rule: data.dsq_rule,
         ufd_rule: data.ufd_rule,
         bfd_rule: data.bfd_rule,
+        nsc_rule: data.nsc_rule ?? "STARTERS_PLUS_1",
+        dne_rule: data.dne_rule ?? "STARTERS_PLUS_1",
       });
+      setCustomCodes(
+        data.custom_result_codes
+          ? data.custom_result_codes.split(",").map((s) => s.trim()).filter(Boolean)
+          : []
+      );
     }
     if (tournamentId) load();
   }, [tournamentId]);
@@ -134,6 +148,8 @@ export default function RulesPage() {
           dnc_rule: form.dnc_rule, dns_rule: form.dns_rule, ocs_rule: form.ocs_rule,
           dnf_rule: form.dnf_rule, ret_rule: form.ret_rule, dsq_rule: form.dsq_rule,
           ufd_rule: form.ufd_rule, bfd_rule: form.bfd_rule,
+          nsc_rule: form.nsc_rule, dne_rule: form.dne_rule,
+          custom_result_codes: customCodes.length > 0 ? customCodes.join(",") : null,
         }),
       });
       if (!res.ok) { setError("ルール保存に失敗しました"); return; }
@@ -147,15 +163,40 @@ export default function RulesPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  const ruleFields: { key: keyof typeof form; label: string }[] = [
-    { key: "dnc_rule", label: "DNC（棄権・不参加）" },
-    { key: "dns_rule", label: "DNS（スタート不成立）" },
-    { key: "ocs_rule", label: "OCS（スタート早期）" },
-    { key: "dnf_rule", label: "DNF（完走せず）" },
-    { key: "ret_rule", label: "RET（リタイア）" },
-    { key: "dsq_rule", label: "DSQ（失格）" },
-    { key: "ufd_rule", label: "UFD" },
-    { key: "bfd_rule", label: "BFD" },
+  function addCustomCode() {
+    const code = newCodeInput.trim().toUpperCase();
+    if (!code) return;
+    if (customCodes.includes(code)) return;
+    setCustomCodes((prev) => [...prev, code]);
+    setNewCodeInput("");
+  }
+
+  function removeCustomCode(code: string) {
+    setCustomCodes((prev) => prev.filter((c) => c !== code));
+  }
+
+  const ruleFields: { key: keyof typeof form; label: string; hint?: string }[] = [
+    { key: "dnc_rule", label: "DNC", hint: "棄権・不参加" },
+    { key: "dns_rule", label: "DNS", hint: "スタート不成立" },
+    { key: "ocs_rule", label: "OCS", hint: "スタート早期（フライング）" },
+    { key: "dnf_rule", label: "DNF", hint: "完走せず" },
+    { key: "ret_rule", label: "RET", hint: "リタイア" },
+    { key: "dsq_rule", label: "DSQ", hint: "失格" },
+    { key: "ufd_rule", label: "UFD", hint: "旗規則違反（U旗）" },
+    { key: "bfd_rule", label: "BFD", hint: "旗規則違反（ブラックフラッグ）" },
+    { key: "nsc_rule", label: "NSC", hint: "コース未完走（スタートはした）" },
+    { key: "dne_rule", label: "DNE", hint: "シリーズから除外できない失格" },
+  ];
+
+  // Fixed-rule codes (not configurable via ENTRIES/STARTERS)
+  const fixedRuleCodes = [
+    { code: "STP", rule: "着順得点 × 120%", hint: "Scoring Time Penalty" },
+    { code: "SCP", rule: "着順得点 × 120%", hint: "Scoring Penalty (20%)" },
+    { code: "ZFP", rule: "着順得点 × 120%", hint: "Zero Flag Penalty (20%)" },
+    { code: "ARB", rule: "着順得点 × 120%", hint: "Arbitration Penalty (20%)" },
+    { code: "PRP", rule: "着順得点を使用", hint: "Protest Required Penalty" },
+    { code: "RDG", rule: "手動入力", hint: "Redress (裁定得点)" },
+    { code: "DPI", rule: "手動入力", hint: "Discretionary Penalty (手動)" },
   ];
 
   return (
@@ -251,15 +292,21 @@ export default function RulesPage() {
             </div>
           </div>
 
-          {/* 失格得点ルール */}
-          <div style={{ ...CARD, marginBottom: "24px" }}>
-            <h2 style={{ fontSize: "14px", fontWeight: "700", color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 0, marginBottom: "18px" }}>
+          {/* 失格得点ルール（設定可能コード） */}
+          <div style={{ ...CARD, marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "14px", fontWeight: "700", color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 0, marginBottom: "4px" }}>
               失格・非完走得点ルール
             </h2>
+            <p style={{ fontSize: "12px", color: MUTED, marginBottom: "18px", marginTop: 0 }}>
+              STARTERS_PLUS_1: スタート艇数＋1　／　ENTRIES_PLUS_1: エントリー艇数＋1
+            </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
-              {ruleFields.map(({ key, label }) => (
+              {ruleFields.map(({ key, label, hint }) => (
                 <div key={key}>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "6px" }}>{label}</label>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "2px" }}>
+                    {label}
+                  </label>
+                  {hint && <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0 0 4px" }}>{hint}</p>}
                   <select
                     value={form[key] as string}
                     onChange={(e) => updateField(key, e.target.value)}
@@ -271,6 +318,75 @@ export default function RulesPage() {
                   </select>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* 固定ルールコード（参照用） */}
+          <div style={{ ...CARD, marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "14px", fontWeight: "700", color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 0, marginBottom: "18px" }}>
+              特殊コード（RRSによる固定ルール）
+            </h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              {fixedRuleCodes.map(({ code, rule, hint }) => (
+                <div key={code} style={{ padding: "10px 12px", backgroundColor: "#f8fafc", borderRadius: "8px", border: `1px solid ${BORDER}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: "700", fontSize: "13px", color: NAV }}>{code}</span>
+                    <span style={{ fontSize: "11px", backgroundColor: "#e2e8f0", color: MUTED, padding: "2px 6px", borderRadius: "4px" }}>固定</span>
+                  </div>
+                  <p style={{ fontSize: "11px", color: MUTED, margin: "4px 0 0" }}>{hint}</p>
+                  <p style={{ fontSize: "11px", color: TEXT, margin: "2px 0 0", fontWeight: "600" }}>{rule}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* カスタムコード */}
+          <div style={{ ...CARD, marginBottom: "24px" }}>
+            <h2 style={{ fontSize: "14px", fontWeight: "700", color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 0, marginBottom: "8px" }}>
+              大会独自コード（その他）
+            </h2>
+            <p style={{ fontSize: "12px", color: MUTED, marginBottom: "16px", marginTop: 0 }}>
+              この大会専用の結果コードを追加できます。追加したコードは着順入力画面でも使用可能になります。
+            </p>
+
+            {/* Existing custom codes */}
+            {customCodes.length > 0 && (
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+                {customCodes.map((code) => (
+                  <div key={code} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 10px", backgroundColor: "#eef2f7", borderRadius: "20px", fontSize: "13px", fontWeight: "600", color: NAV }}>
+                    {code}
+                    <button
+                      type="button"
+                      onClick={() => removeCustomCode(code)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "14px", padding: "0 0 0 2px", lineHeight: 1 }}
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add new code */}
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <input
+                type="text"
+                value={newCodeInput}
+                onChange={(e) => setNewCodeInput(e.target.value.toUpperCase())}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomCode(); }}}
+                placeholder="例: CUSTOM1"
+                maxLength={10}
+                style={{ ...INPUT_STYLE, width: "160px" }}
+              />
+              <button
+                type="button"
+                onClick={addCustomCode}
+                style={{
+                  padding: "10px 16px", backgroundColor: "#f1f5f9", color: TEXT,
+                  border: `1px solid ${BORDER}`, borderRadius: "8px",
+                  cursor: "pointer", fontSize: "13px", fontWeight: "600", whiteSpace: "nowrap",
+                }}
+              >
+                + 追加
+              </button>
             </div>
           </div>
 

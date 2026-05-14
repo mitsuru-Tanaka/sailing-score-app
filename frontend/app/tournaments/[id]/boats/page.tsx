@@ -406,10 +406,10 @@ export default function BoatsPage() {
                 <thead>
                   <tr style={{ backgroundColor: NAV, color: WHITE }}>
                     {[
-                      "エントリー番号", "艇番", "セールNo.", "大学名",
-                      ...(isTeamEvent ? ["団体集計名"] : []),
-                      ...(activeTab === "ALL" ? ["クラス"] : []),
-                      "ス1", "ス2", "ス3", "ク1", "ク2", "ク3",
+                      "Entry No.", "Boat No.", "Sail No.", "Univ.",
+                      ...(isTeamEvent ? ["Team"] : []),
+                      ...(activeTab === "ALL" ? ["Class"] : []),
+                      "Helm 1", "Helm 2", "Helm 3", "Crew 1", "Crew 2", "Crew 3",
                     ].map(h => (
                       <th key={h} style={{ padding: "10px 12px", textAlign: "left", whiteSpace: "nowrap", fontWeight: "600", fontSize: "12px" }}>
                         {h}

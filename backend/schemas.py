@@ -141,6 +141,9 @@ class RuleConfigUpdate(BaseModel):
     dsq_rule: str
     ufd_rule: str
     bfd_rule: str
+    nsc_rule: str = "STARTERS_PLUS_1"
+    dne_rule: str = "STARTERS_PLUS_1"
+    custom_result_codes: Optional[str] = None
 
 
 class RuleConfigOut(BaseModel):
@@ -159,6 +162,9 @@ class RuleConfigOut(BaseModel):
     dsq_rule: str
     ufd_rule: str
     bfd_rule: str
+    nsc_rule: str = "STARTERS_PLUS_1"
+    dne_rule: str = "STARTERS_PLUS_1"
+    custom_result_codes: Optional[str] = None
 
     class Config:
         from_attributes = True

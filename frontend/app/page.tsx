@@ -94,6 +94,8 @@ export default function Home() {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function fetchTournaments() {
     try {
@@ -145,6 +147,20 @@ export default function Home() {
       setError("大会作成に失敗しました");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    setDeleting(true);
+    try {
+      const res = await apiFetch(`/tournaments/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setTournaments(prev => prev.filter(t => t.id !== id));
+    } catch {
+      setError("大会の削除に失敗しました");
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmId(null);
     }
   }
 
@@ -294,7 +310,7 @@ export default function Home() {
                   {t.venue && <span>📍 {t.venue}</span>}
                 </div>
               )}
-              <div style={{ marginTop: "auto", paddingTop: "8px", borderTop: `1px solid ${BORDER}` }}>
+              <div style={{ marginTop: "auto", paddingTop: "8px", borderTop: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Link
                   href={`/tournaments/${t.id}`}
                   style={{
@@ -306,9 +322,67 @@ export default function Home() {
                 >
                   開く →
                 </Link>
+                <button
+                  onClick={() => setDeleteConfirmId(t.id)}
+                  style={{
+                    padding: "6px 12px", backgroundColor: WHITE, color: "#dc2626",
+                    border: "1px solid #fecaca", borderRadius: "6px",
+                    cursor: "pointer", fontSize: "12px", fontWeight: "600",
+                  }}
+                >
+                  削除
+                </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {/* 削除確認モーダル */}
+      {deleteConfirmId !== null && (
+        <div style={{
+          position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: WHITE, borderRadius: "12px", padding: "28px 32px",
+            maxWidth: "400px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+          }}>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: TEXT, marginBottom: "10px" }}>
+              大会を削除しますか？
+            </div>
+            <div style={{ fontSize: "14px", color: "#dc2626", marginBottom: "8px", fontWeight: "600" }}>
+              この操作は取り消せません。
+            </div>
+            <div style={{ fontSize: "13px", color: MUTED, marginBottom: "24px" }}>
+              大会に紐づくすべてのレース・成績・艇データが削除されます。
+            </div>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                disabled={deleting}
+                style={{
+                  padding: "9px 18px", backgroundColor: WHITE, color: MUTED,
+                  border: `1px solid ${BORDER}`, borderRadius: "8px",
+                  cursor: "pointer", fontSize: "14px",
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirmId)}
+                disabled={deleting}
+                style={{
+                  padding: "9px 18px", backgroundColor: "#dc2626", color: WHITE,
+                  border: "none", borderRadius: "8px",
+                  cursor: deleting ? "not-allowed" : "pointer",
+                  fontSize: "14px", fontWeight: "600",
+                  opacity: deleting ? 0.7 : 1,
+                }}
+              >
+                {deleting ? "削除中..." : "削除する"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>

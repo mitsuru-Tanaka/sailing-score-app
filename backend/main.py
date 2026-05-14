@@ -69,6 +69,9 @@ _MIGRATIONS = [
     "ALTER TABLE races ADD COLUMN IF NOT EXISTS start_time TEXT",
     "ALTER TABLE races ADD COLUMN IF NOT EXISTS finish_time_top TEXT",
     "ALTER TABLE races ADD COLUMN IF NOT EXISTS finish_time_last TEXT",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS nsc_rule TEXT NOT NULL DEFAULT 'STARTERS_PLUS_1'",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS dne_rule TEXT NOT NULL DEFAULT 'STARTERS_PLUS_1'",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS custom_result_codes TEXT",
 ]
 
 for _sql in _MIGRATIONS:
@@ -1727,6 +1730,28 @@ def update_tournament(
     db.commit()
     db.refresh(tournament)
     return tournament
+
+
+@app.delete("/tournaments/{tournament_id}", status_code=204)
+def delete_tournament(
+    tournament_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    check_tournament_access(tournament_id, current_user, db, owner_only=True)
+
+    # Cascade: race results → races → boats → members → rule_config → tournament
+    for race in db.query(Race).filter(Race.tournament_id == tournament_id).all():
+        db.query(RaceResult).filter(RaceResult.race_id == race.id).delete()
+    db.query(Race).filter(Race.tournament_id == tournament_id).delete()
+    db.query(Boat).filter(Boat.tournament_id == tournament_id).delete()
+    db.query(TournamentMember).filter(TournamentMember.tournament_id == tournament_id).delete()
+    db.query(RuleConfig).filter(RuleConfig.tournament_id == tournament_id).delete()
+    db.delete(tournament)
+    db.commit()
 
 
 # ─── 認証・管理者エンドポイント ────────────────────────────────────────────
