@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import TournamentNav from "../../../../components/TournamentNav";
@@ -121,10 +121,10 @@ export default function RaceResultPage() {
       setLoading(true);
       setError("");
       const [tRes, racesRes, boatsRes, resultsRes] = await Promise.all([
-        fetch(`${API_BASE}/tournaments/${tournamentId}`),
-        fetch(`${API_BASE}/tournaments/${tournamentId}/races`),
-        fetch(`${API_BASE}/tournaments/${tournamentId}/boats`),
-        fetch(`${API_BASE}/races/${raceId}/results`),
+        apiFetch(`/tournaments/${tournamentId}`),
+        apiFetch(`/tournaments/${tournamentId}/races`),
+        apiFetch(`/tournaments/${tournamentId}/boats`),
+        apiFetch(`/races/${raceId}/results`),
       ]);
       if (!tRes.ok)       throw new Error("大会情報の取得に失敗しました");
       if (!racesRes.ok)   throw new Error("レース一覧の取得に失敗しました");
