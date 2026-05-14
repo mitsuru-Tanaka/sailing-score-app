@@ -103,13 +103,13 @@ export default function BoatsPage() {
 
   async function fetchTournament() {
     if (!tournamentId) return;
-    const res = await fetch(`${API_BASE}/tournaments/${tournamentId}`);
+    const res = await apiFetch(`/tournaments/${tournamentId}`);
     if (res.ok) setTournament(await res.json());
   }
 
   async function fetchBoats() {
     if (!tournamentId) return;
-    const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/boats`);
+    const res = await apiFetch(`/tournaments/${tournamentId}/boats`);
     if (res.ok) setBoats(await res.json());
   }
 

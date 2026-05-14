@@ -82,11 +82,11 @@ export default function RacesPage() {
   const [saveMsg, setSaveMsg] = useState("");
 
   async function fetchTournament() {
-    const res = await fetch(`${API_BASE}/tournaments/${tournamentId}`);
+    const res = await apiFetch(`/tournaments/${tournamentId}`);
     if (res.ok) { const d = await res.json(); setTournamentName(d.name); }
   }
   async function fetchRaces() {
-    const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/races`);
+    const res = await apiFetch(`/tournaments/${tournamentId}/races`);
     if (!res.ok) { setError("レース一覧の取得に失敗しました"); return; }
     setRaces(await res.json());
   }

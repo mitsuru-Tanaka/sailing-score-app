@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import TournamentNav from "../../components/TournamentNav";
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 type Tournament = {
   id: number;
@@ -104,7 +104,7 @@ export default function TournamentDetailPage() {
   const [editError, setEditError] = useState("");
 
   async function fetchTournament() {
-    const res = await fetch(`${API_BASE}/tournaments/${id}`, { cache: "no-store" });
+    const res = await apiFetch(`/tournaments/${id}`);
     if (res.ok) setTournament(await res.json());
   }
 
@@ -117,7 +117,7 @@ export default function TournamentDetailPage() {
     if (!id) return;
     async function init() {
       const [tRes, meRes] = await Promise.all([
-        fetch(`${API_BASE}/tournaments/${id}`, { cache: "no-store" }),
+        apiFetch(`/tournaments/${id}`),
         apiFetch("/auth/me"),
       ]);
       if (tRes.ok) setTournament(await tRes.json());

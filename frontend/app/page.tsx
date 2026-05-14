@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -98,7 +98,7 @@ export default function Home() {
   async function fetchTournaments() {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/tournaments`);
+      const res = await apiFetch(`/tournaments`);
       if (!res.ok) throw new Error();
       setTournaments(await res.json());
     } catch {
