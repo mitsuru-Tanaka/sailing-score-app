@@ -791,10 +791,14 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
                 total += sum(pts_list[:team_size])
             return total
 
-        all_team_names = sorted({
-            (b.team_name or b.organization_name or "未設定")
-            for b in all_boats
-        })
+        # 全クラスに艇が登録されているチームのみ総合順位に含める
+        team_classes: dict[str, set[str]] = {}
+        for b in all_boats:
+            tname = b.team_name or b.organization_name or "未設定"
+            team_classes.setdefault(tname, set()).add(b.boat_class or "")
+        all_team_names = sorted(
+            t for t, clss in team_classes.items() if all(cls in clss for cls in classes)
+        )
 
         team_grand = {t: sum(class_team_total(t, cls) for cls in classes) for t in all_team_names}
 
@@ -1223,6 +1227,9 @@ def build_overall_section_v3(class_sections: list[dict]) -> dict:
 
     overall_teams = []
     for tname in sorted(team_scores.keys()):
+        # 全クラスに出場しているチームのみ総合順位に含める
+        if len(team_scores[tname]) < len(class_names):
+            continue
         class_scores = [
             {"class_name": cn, "points": team_scores[tname].get(cn, 0)}
             for cn in class_names
