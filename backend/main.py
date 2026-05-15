@@ -1652,14 +1652,23 @@ def save_race_results(
     if rule_config is None:
         raise HTTPException(status_code=404, detail="RuleConfig not found")
 
+    # Duplicate finish_position check per class (each class has independent positions)
+    boat_ids_in_payload = [item.boat_id for item in payload]
+    boat_class_map = {
+        b.id: (b.boat_class or "")
+        for b in db.query(Boat).filter(Boat.id.in_(boat_ids_in_payload)).all()
+    }
+    class_pos_seen: dict[str, set] = {}
+    for item in payload:
+        if item.result_code == "OK" and item.finish_position is not None:
+            cls = boat_class_map.get(item.boat_id, "")
+            seen = class_pos_seen.setdefault(cls, set())
+            if item.finish_position in seen:
+                raise HTTPException(status_code=400, detail="Duplicate finish_position detected among OK results")
+            seen.add(item.finish_position)
+
     entries_count = get_entries_count(tournament.id, db)
     starters_count = get_starters_count(payload)
-
-    ok_positions = [item.finish_position for item in payload if item.result_code == "OK"]
-    ok_positions = [p for p in ok_positions if p is not None]
-
-    if len(ok_positions) != len(set(ok_positions)):
-        raise HTTPException(status_code=400, detail="Duplicate finish_position detected among OK results")
 
     db.query(RaceResult).filter(RaceResult.race_id == race_id).delete()
 
