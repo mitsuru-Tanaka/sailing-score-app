@@ -133,105 +133,108 @@ export default function RaceResultPage() {
 
   async function fetchAll() {
     if (!tournamentId || !raceId) return;
-    try {
-      setLoading(true);
-      setError("");
-      const [tRes, racesRes, boatsRes, resultsRes, rulesRes] = await Promise.all([
-        apiFetch(`/tournaments/${tournamentId}`),
-        apiFetch(`/tournaments/${tournamentId}/races`),
-        apiFetch(`/tournaments/${tournamentId}/boats`),
-        apiFetch(`/races/${raceId}/results`),
-        apiFetch(`/tournaments/${tournamentId}/rules`),
-      ]);
-      if (!tRes.ok)       throw new Error("大会情報の取得に失敗しました");
-      if (!racesRes.ok)   throw new Error("レース一覧の取得に失敗しました");
-      if (!boatsRes.ok)   throw new Error("艇一覧の取得に失敗しました");
-      if (!resultsRes.ok) throw new Error("レース結果の取得に失敗しました");
+    setLoading(true);
+    setError("");
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 1200 * attempt));
 
-      const tData: Tournament  = await tRes.json();
-      const racesData: Race[]  = await racesRes.json();
-      const boatsData: Boat[]  = await boatsRes.json();
-      const resultsData: any[] = await resultsRes.json();
-      const rulesData          = rulesRes.ok ? await rulesRes.json() : null;
+        const [tRes, racesRes, boatsRes, resultsRes, rulesRes] = await Promise.all([
+          apiFetch(`/tournaments/${tournamentId}`),
+          apiFetch(`/tournaments/${tournamentId}/races`),
+          apiFetch(`/tournaments/${tournamentId}/boats`),
+          apiFetch(`/races/${raceId}/results`),
+          apiFetch(`/tournaments/${tournamentId}/rules`),
+        ]);
+        if (!tRes.ok)       throw new Error("大会情報の取得に失敗しました");
+        if (!racesRes.ok)   throw new Error("レース一覧の取得に失敗しました");
+        if (!boatsRes.ok)   throw new Error("艇一覧の取得に失敗しました");
+        if (!resultsRes.ok) throw new Error("レース結果の取得に失敗しました");
 
-      setTournament(tData);
-      setRace(racesData.find((r) => String(r.id) === String(raceId)) || null);
-      setBoats(boatsData);
+        const tData: Tournament  = await tRes.json();
+        const racesData: Race[]  = await racesRes.json();
+        const boatsData: Boat[]  = await boatsRes.json();
+        const resultsData: any[] = await resultsRes.json();
+        const rulesData          = rulesRes.ok ? await rulesRes.json() : null;
 
-      // Parse custom codes
-      const customList: string[] = rulesData?.custom_result_codes
-        ? rulesData.custom_result_codes.split(",").map((s: string) => s.trim()).filter(Boolean)
-        : [];
-      setCustomCodes(customList);
+        setTournament(tData);
+        setRace(racesData.find((r) => String(r.id) === String(raceId)) || null);
+        setBoats(boatsData);
 
-      // Parse classes
-      const cls = parseClassConfig(tData.class_config);
+        const customList: string[] = rulesData?.custom_result_codes
+          ? rulesData.custom_result_codes.split(",").map((s: string) => s.trim()).filter(Boolean)
+          : [];
+        setCustomCodes(customList);
 
-      // Build initial slots
-      const newSlots: Record<string, ClassSlot> = {};
-      if (cls.length === 0) {
-        newSlots["ALL"] = {
-          finish: boatsData.map(() => ({ boatId: null, sailInput: "", entryInput: "" })),
-          penalties: [],
-        };
-        setActiveClass("ALL");
-      } else {
-        for (const c of cls) {
-          const cb = boatsData.filter((b) => b.boat_class === c);
-          newSlots[c] = {
-            finish: cb.map(() => ({ boatId: null, sailInput: "", entryInput: "" })),
+        const cls = parseClassConfig(tData.class_config);
+        const newSlots: Record<string, ClassSlot> = {};
+        if (cls.length === 0) {
+          newSlots["ALL"] = {
+            finish: boatsData.map(() => ({ boatId: null, sailInput: "", entryInput: "" })),
             penalties: [],
           };
-        }
-        setActiveClass((prev) => cls.includes(prev) ? prev : cls[0]);
-      }
-
-      // Populate from existing results
-      resultsData.forEach((result: any) => {
-        const boat = boatsData.find((b) => b.id === result.boat_id);
-        if (!boat) return;
-        const targetClass = cls.length === 0 ? "ALL" : (boat.boat_class ?? cls[0]);
-        const s = newSlots[targetClass];
-        if (!s) return;
-
-        if (result.result_code === "OK" && result.finish_position != null) {
-          const idx = result.finish_position - 1;
-          if (idx >= 0 && idx < s.finish.length) {
-            s.finish[idx] = {
-              boatId: boat.id,
-              sailInput: boat.sail_number,
-              entryInput: boat.entry_number?.toString() ?? "",
+          setActiveClass("ALL");
+        } else {
+          for (const c of cls) {
+            const cb = boatsData.filter((b) => b.boat_class === c);
+            newSlots[c] = {
+              finish: cb.map(() => ({ boatId: null, sailInput: "", entryInput: "" })),
+              penalties: [],
             };
           }
-        } else if (result.result_code !== "OK") {
-          s.penalties.push({
-            key: String(++penaltyKeyCounter),
-            boatId: boat.id,
-            resultCode: result.result_code,
-            finishPosition: result.finish_position?.toString() ?? "",
-            manualPoints: "",
-            note: result.note ?? "",
-          });
+          setActiveClass((prev) => cls.includes(prev) ? prev : cls[0]);
         }
-      });
-      setClassSlots(newSlots);
 
-      // Tab 2
-      setBoatRows(boatsData.map((boat) => {
-        const existing = resultsData.find((r: any) => r.boat_id === boat.id);
-        return {
-          boat_id: boat.id,
-          finish_position: existing?.finish_position?.toString() ?? "",
-          result_code:     existing?.result_code ?? "OK",
-          manual_points:   "",
-          note:            existing?.note ?? "",
-          points:          existing?.points ?? null,
-        };
-      }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "データ取得に失敗しました");
-    } finally {
-      setLoading(false);
+        resultsData.forEach((result: any) => {
+          const boat = boatsData.find((b) => b.id === result.boat_id);
+          if (!boat) return;
+          const targetClass = cls.length === 0 ? "ALL" : (boat.boat_class ?? cls[0]);
+          const s = newSlots[targetClass];
+          if (!s) return;
+          if (result.result_code === "OK" && result.finish_position != null) {
+            const idx = result.finish_position - 1;
+            if (idx >= 0 && idx < s.finish.length) {
+              s.finish[idx] = {
+                boatId: boat.id,
+                sailInput: boat.sail_number,
+                entryInput: boat.entry_number?.toString() ?? "",
+              };
+            }
+          } else if (result.result_code !== "OK") {
+            s.penalties.push({
+              key: String(++penaltyKeyCounter),
+              boatId: boat.id,
+              resultCode: result.result_code,
+              finishPosition: result.finish_position?.toString() ?? "",
+              manualPoints: "",
+              note: result.note ?? "",
+            });
+          }
+        });
+        setClassSlots(newSlots);
+
+        setBoatRows(boatsData.map((boat) => {
+          const existing = resultsData.find((r: any) => r.boat_id === boat.id);
+          return {
+            boat_id: boat.id,
+            finish_position: existing?.finish_position?.toString() ?? "",
+            result_code:     existing?.result_code ?? "OK",
+            manual_points:   "",
+            note:            existing?.note ?? "",
+            points:          existing?.points ?? null,
+          };
+        }));
+
+        setLoading(false);
+        return; // success
+      } catch (err) {
+        if (attempt === MAX_ATTEMPTS - 1) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました");
+          setLoading(false);
+        }
+        // else: loop continues with next attempt after delay
+      }
     }
   }
 

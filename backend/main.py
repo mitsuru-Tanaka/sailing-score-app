@@ -667,7 +667,24 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
                     total += sum(pts_list[:team_size])
                 return total
 
-            sorted_teams = sorted(team_boats_map.keys(), key=team_net)
+            def team_sort_key(tname: str) -> tuple:
+                total = 0
+                has_any = False
+                is_incomplete = False
+                for race in races:
+                    pts_list = sorted(
+                        p for b in team_boats_map[tname]
+                        if (p := (race_result_map.get((race.id, b.id)) or {}).get("points")) is not None
+                    )
+                    if len(pts_list) > 0:
+                        has_any = True
+                        total += sum(pts_list[:team_size])
+                        if len(pts_list) < team_size:
+                            is_incomplete = True
+                group = 0 if (has_any and not is_incomplete) else (1 if has_any else 2)
+                return (group, total, tname)
+
+            sorted_teams = sorted(team_boats_map.keys(), key=team_sort_key)
             for rank, tname in enumerate(sorted_teams, 1):
                 t_total = team_net(tname)
                 for i, boat in enumerate(team_boats_map[tname]):
@@ -771,7 +788,18 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
         })
 
         team_grand = {t: sum(class_team_total(t, cls) for cls in classes) for t in all_team_names}
-        sorted_ov = sorted(all_team_names, key=lambda t: team_grand[t])
+
+        def overall_sort_key(tname: str) -> tuple:
+            grand = team_grand[tname]
+            has_any = any(
+                (race_result_map.get((r.id, b.id)) or {}).get("points") is not None
+                for b in all_boats
+                if (b.team_name or b.organization_name or "未設定") == tname
+                for r in races
+            )
+            return (0 if has_any else 1, grand, tname)
+
+        sorted_ov = sorted(all_team_names, key=overall_sort_key)
 
         for rank, tname in enumerate(sorted_ov, 1):
             row_num = rank + 3
