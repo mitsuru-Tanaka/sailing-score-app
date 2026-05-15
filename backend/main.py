@@ -424,6 +424,19 @@ def get_race_result_details_by_boat(tournament_id: int, db: Session):
 
     return races, result_map
 
+def _parse_class_config(cfg: str | None) -> list[str]:
+    if not cfg:
+        return []
+    result = []
+    for part in cfg.split(","):
+        part = part.strip()
+        if part.startswith("OTHER:"):
+            result.append(part[6:])
+        elif part:
+            result.append(part)
+    return result
+
+
 def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
     from openpyxl.utils import get_column_letter
 
@@ -431,250 +444,361 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
 
-    is_team = tournament.event_template in ("TEAM_3_BOATS", "TEAM_4_BOATS", "MULTI_GROUP_HYBRID")
+    is_team   = tournament.event_template in ("TEAM_3_BOATS", "TEAM_4_BOATS", "MULTI_GROUP_HYBRID")
     team_size = 4 if tournament.event_template == "TEAM_4_BOATS" else 3
 
-    boats = (
+    all_boats = (
         db.query(Boat)
         .filter(Boat.tournament_id == tournament_id)
         .order_by(Boat.id.asc())
         .all()
     )
     races, race_result_map = get_race_result_details_by_boat(tournament_id, db)
-    boat_map = {b.id: b for b in boats}
 
-    # ─── Styles ───────────────────────────────────────────────────────────────
-    navy_fill   = PatternFill("solid", fgColor="1F4E78")
-    gray_fill   = PatternFill("solid", fgColor="F0F4F8")
-    hdr_font    = Font(color="FFFFFF", bold=True, size=9)
-    bold9       = Font(bold=True, size=9)
-    norm9       = Font(size=9)
-    center_al   = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    left_al     = Alignment(horizontal="left",   vertical="center")
-    right_al    = Alignment(horizontal="right",  vertical="center")
+    classes = _parse_class_config(tournament.class_config)
 
-    thin   = Side(style="thin",   color="AAAAAA")
-    medium = Side(style="medium", color="000000")
+    # ─── Shared styles ────────────────────────────────────────────────────────
+    navy_fill  = PatternFill("solid", fgColor="1F4E78")
+    gray_fill  = PatternFill("solid", fgColor="F0F4F8")
+    hdr_font   = Font(color="FFFFFF", bold=True, size=9)
+    bold9      = Font(bold=True, size=9)
+    norm9      = Font(size=9)
+    center_al  = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left_al    = Alignment(horizontal="left",   vertical="center")
+    right_al   = Alignment(horizontal="right",  vertical="center")
+    thin_side  = Side(style="thin",   color="AAAAAA")
+    med_side   = Side(style="medium", color="000000")
 
-    def thin_border():
-        return Border(left=thin, right=thin, top=thin, bottom=thin)
+    def tb():   # thin border
+        return Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
 
-    def thick_top():
-        return Border(left=thin, right=thin, top=medium, bottom=thin)
+    def race_box_border(pos: str):
+        """pos: 'left' | 'mid' | 'right'  — thick left/right edges around a race group"""
+        l = med_side  if pos == "left"  else thin_side
+        r = med_side  if pos == "right" else thin_side
+        return Border(left=l, right=r, top=thin_side, bottom=thin_side)
 
-    def apply(cell, fill=None, font=None, alignment=None, border=None):
+    def race_box_top(pos: str):
+        l = med_side  if pos == "left"  else thin_side
+        r = med_side  if pos == "right" else thin_side
+        return Border(left=l, right=r, top=med_side, bottom=thin_side)
+
+    def ap(cell, fill=None, font=None, alignment=None, border=None):
         if fill:      cell.fill      = fill
         if font:      cell.font      = font
         if alignment: cell.alignment = alignment
         if border:    cell.border    = border
 
-    n_races    = len(races)
-    n_fixed    = 7   # 順位 大学名 Entry艇体セールスキッパークルー
-    n_tail     = 2 if is_team else 1
-    total_cols = n_fixed + n_races * 3 + n_tail
+    # n_fixed: 順位 Entry大学艇体セールスキッパークルー
+    N_FIXED = 7
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "成績"
-
-    # ─── Row 1: title ─────────────────────────────────────────────────────────
-    class_str = tournament.class_name or tournament.class_config or ""
-    date_str  = ""
+    date_str = ""
     if tournament.start_date:
         date_str = tournament.start_date
         if tournament.end_date and tournament.end_date != tournament.start_date:
             date_str += f"〜{tournament.end_date}"
 
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max(1, total_cols // 3))
-    ws["A1"].value     = tournament.name
-    ws["A1"].font      = Font(bold=True, size=13)
-    ws["A1"].alignment = left_al
+    # ─── Sheet writer ──────────────────────────────────────────────────────────
+    def write_sheet(wb: Workbook, sheet_title: str, boats: list, sheet_class: str | None):
+        ws = wb.create_sheet(title=sheet_title)
+        n_races  = len(races)
+        # tail: 艇合計 + 大学合計 for team, 合計得点 for individual
+        n_tail   = 2 if is_team else 1
+        total_cols = N_FIXED + n_races * 3 + n_tail
 
-    mid_col = max(1, total_cols // 2)
-    ws.merge_cells(start_row=1, start_column=mid_col, end_row=1, end_column=mid_col + 2)
-    mc = ws.cell(row=1, column=mid_col, value=class_str)
-    mc.font = Font(bold=True, size=12); mc.alignment = center_al
+        # ── Row 1: title ──────────────────────────────────────────────────────
+        class_label = sheet_class or tournament.class_name or ""
+        title_text  = tournament.name
+        if class_label:
+            title_text += f"  {class_label}"
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols)
+        c = ws.cell(row=1, column=1, value=title_text)
+        c.font = Font(bold=True, size=13); c.alignment = left_al
+        if date_str:
+            # right-side date in same merged cell — use a separate cell near end
+            pass
 
-    ws.merge_cells(start_row=1, start_column=total_cols - 1, end_row=1, end_column=total_cols)
-    ec = ws.cell(row=1, column=total_cols - 1, value=date_str)
-    ec.font = Font(size=10); ec.alignment = right_al
+        # ── Rows 3-4: double-row header ───────────────────────────────────────
+        H1, H2 = 3, 4  # header rows
 
-    # Row 2 blank, Row 3 headers
-    header_row = 3
-    fixed_hdrs = ["順位", "大学名", "Entry\nNo.", "艇体\nNo.", "セール\nNo.", "スキッパー", "クルー"]
-    for i, h in enumerate(fixed_hdrs, 1):
-        c = ws.cell(row=header_row, column=i, value=h)
-        apply(c, fill=navy_fill, font=hdr_font, alignment=center_al, border=thin_border())
+        fixed_hdrs = ["順位", "ｴﾝﾄﾘｰ\nNo", "大学名", "艇体\nNo", "セール\nNo", "スキッパー", "クルー"]
+        for ci, h in enumerate(fixed_hdrs, 1):
+            # merge H1 and H2 for fixed columns
+            ws.merge_cells(start_row=H1, start_column=ci, end_row=H2, end_column=ci)
+            c = ws.cell(row=H1, column=ci, value=h)
+            ap(c, fill=navy_fill, font=hdr_font, alignment=center_al, border=tb())
+            ws.cell(row=H2, column=ci).border = tb()
 
-    col = n_fixed + 1
-    for race in races:
-        rn = race.race_number
-        for sub in (f"R{rn}\n着順", f"R{rn}\nコード", f"R{rn}\n得点"):
-            c = ws.cell(row=header_row, column=col, value=sub)
-            apply(c, fill=navy_fill, font=hdr_font, alignment=center_al, border=thin_border())
-            col += 1
+        # Race group headers
+        col = N_FIXED + 1
+        for ri, race in enumerate(races):
+            rn = race.race_number
+            c1, c2, c3 = col, col + 1, col + 2
+            # H1: "第NR" merged across 3 cols
+            ws.merge_cells(start_row=H1, start_column=c1, end_row=H1, end_column=c3)
+            c = ws.cell(row=H1, column=c1, value=f"第{rn}Ｒ")
+            ap(c, fill=navy_fill, font=hdr_font, alignment=center_al,
+               border=Border(left=med_side, right=med_side, top=med_side, bottom=thin_side))
+            # H2: 着順 / 順位 / 得点
+            for sub_col, sub_hdr in zip([c1, c2, c3], ["着順", "順位", "得点"]):
+                pos = "left" if sub_col == c1 else ("right" if sub_col == c3 else "mid")
+                c = ws.cell(row=H2, column=sub_col, value=sub_hdr)
+                ap(c, fill=navy_fill, font=hdr_font, alignment=center_al, border=race_box_border(pos))
+            col += 3
 
-    if is_team:
-        for h in ("艇合計", "大学合計"):
-            c = ws.cell(row=header_row, column=col, value=h)
-            apply(c, fill=navy_fill, font=hdr_font, alignment=center_al, border=thin_border())
-            col += 1
-    else:
-        c = ws.cell(row=header_row, column=col, value="合計得点")
-        apply(c, fill=navy_fill, font=hdr_font, alignment=center_al, border=thin_border())
-
-    ws.row_dimensions[header_row].height = 28
-
-    # ─── Data rows ────────────────────────────────────────────────────────────
-    data_start = header_row + 1
-    current_row = data_start
-
-    def write_boat_row(ws, row, rank_val, univ_val, boat, races, race_result_map,
-                       boat_total, team_total_val, is_team, is_first_in_team):
-        bdr = thick_top() if is_first_in_team else thin_border()
-
-        def wc(col, val, al=None, fnt=None):
-            c = ws.cell(row=row, column=col, value=val)
-            apply(c, font=fnt or norm9, alignment=al or left_al, border=bdr)
-
-        wc(1, rank_val if rank_val != "" else "", center_al, bold9 if rank_val != "" else norm9)
-        wc(2, univ_val, left_al)
-        wc(3, boat.entry_number if boat.entry_number is not None else "", center_al)
-        wc(4, boat.boat_number or "", center_al)
-        wc(5, boat.sail_number or "", center_al)
-        wc(6, boat.helmsman_name or "", left_al)
-        wc(7, boat.crew_name or "", left_al)
-
-        col = n_fixed + 1
-        for race in races:
-            detail = race_result_map.get((race.id, boat.id))
-            if detail is None:
-                for _ in range(3):
-                    c = ws.cell(row=row, column=col, value="")
-                    apply(c, font=norm9, alignment=center_al, border=bdr)
-                    col += 1
-            else:
-                fp   = detail["finish_position"]
-                code = detail["result_code"]
-                pts  = detail["points"]
-                disp_code = "" if code == "OK" else (code or "")
-                c = ws.cell(row=row, column=col, value=fp if fp is not None else "")
-                apply(c, font=norm9, alignment=center_al, border=bdr); col += 1
-                c = ws.cell(row=row, column=col, value=disp_code)
-                apply(c, font=norm9, alignment=center_al, border=bdr); col += 1
-                c = ws.cell(row=row, column=col, value=pts if pts is not None else "")
-                apply(c, font=norm9, alignment=center_al, border=bdr); col += 1
-
+        # Tail header(s)
         if is_team:
-            c = ws.cell(row=row, column=col, value=boat_total if boat_total is not None else "")
-            apply(c, font=bold9, alignment=center_al, border=bdr); col += 1
-            c = ws.cell(row=row, column=col, value=team_total_val)
-            apply(c, font=bold9 if team_total_val != "" else norm9, alignment=center_al, border=bdr)
+            for tail_h in ("艇合計", "大学合計"):
+                ws.merge_cells(start_row=H1, start_column=col, end_row=H2, end_column=col)
+                c = ws.cell(row=H1, column=col, value=tail_h)
+                ap(c, fill=navy_fill, font=hdr_font, alignment=center_al, border=tb())
+                ws.cell(row=H2, column=col).border = tb()
+                col += 1
         else:
-            c = ws.cell(row=row, column=col, value=boat_total if boat_total is not None else "")
-            apply(c, font=bold9, alignment=center_al, border=bdr)
+            ws.merge_cells(start_row=H1, start_column=col, end_row=H2, end_column=col)
+            c = ws.cell(row=H1, column=col, value="合計得点")
+            ap(c, fill=navy_fill, font=hdr_font, alignment=center_al, border=tb())
+            ws.cell(row=H2, column=col).border = tb()
 
-    if not is_team:
-        # Individual standings
-        standings = calculate_individual_standings(tournament_id, db)
-        for item in standings:
-            boat = boat_map.get(item["boat_id"])
-            if boat is None:
-                continue
-            boat_total = item["net_points"]
-            write_boat_row(ws, current_row, item["rank"], boat.organization_name or "",
-                           boat, races, race_result_map,
-                           boat_total, "", False, True)
-            current_row += 1
-    else:
-        # Team standings — group boats by team, compute totals
-        team_boats_map: dict[str, list] = {}
-        for boat in boats:
-            team = boat.team_name or boat.organization_name or "未設定"
-            team_boats_map.setdefault(team, []).append(boat)
+        ws.row_dimensions[H1].height = 18
+        ws.row_dimensions[H2].height = 18
 
-        def boat_total_pts(boat_id):
-            return sum(
-                (race_result_map.get((r.id, boat_id)) or {}).get("points") or 0
-                for r in races
-            )
+        # ── Data rows ─────────────────────────────────────────────────────────
+        data_start   = H2 + 1
+        current_row  = data_start
 
-        def team_total_pts(team_name):
+        def write_boat_row(row_num: int, rank_val, univ_val, boat, boat_total, team_total_val,
+                           is_first_in_team: bool):
+            top_bdr = med_side if is_first_in_team else thin_side
+
+            def wc(col_i, val, al=None, fnt=None, extra_border=None):
+                c = ws.cell(row=row_num, column=col_i, value=val)
+                ap(c, font=fnt or norm9, alignment=al or left_al,
+                   border=Border(left=thin_side, right=thin_side,
+                                 top=top_bdr, bottom=thin_side))
+
+            wc(1, rank_val if rank_val != "" else "", center_al, bold9 if rank_val != "" else norm9)
+            wc(2, boat.entry_number if boat.entry_number is not None else "", center_al)
+            wc(3, univ_val, left_al)
+            wc(4, boat.boat_number or "", center_al)
+            wc(5, boat.sail_number or "", center_al)
+            wc(6, boat.helmsman_name or "", left_al)
+            wc(7, boat.crew_name or "", left_al)
+
+            data_col = N_FIXED + 1
+            for ri2, race in enumerate(races):
+                c1r, c2r, c3r = data_col, data_col + 1, data_col + 2
+                detail = race_result_map.get((race.id, boat.id))
+                if detail is None:
+                    for sc, pos in zip([c1r, c2r, c3r], ["left", "mid", "right"]):
+                        c = ws.cell(row=row_num, column=sc, value="")
+                        ap(c, font=norm9, alignment=center_al,
+                           border=Border(left=med_side if pos == "left" else thin_side,
+                                        right=med_side if pos == "right" else thin_side,
+                                        top=top_bdr, bottom=thin_side))
+                else:
+                    fp   = detail["finish_position"]
+                    code = detail["result_code"]
+                    pts  = detail["points"]
+                    # 着順: finish_position for OK, else code
+                    if code == "OK":
+                        disp_finish = fp if fp is not None else ""
+                        disp_rank   = fp if fp is not None else ""
+                    else:
+                        disp_finish = fp if fp is not None else code
+                        disp_rank   = code
+                    for sc, val, pos in zip(
+                        [c1r, c2r, c3r],
+                        [disp_finish, disp_rank, pts if pts is not None else ""],
+                        ["left", "mid", "right"]
+                    ):
+                        c = ws.cell(row=row_num, column=sc, value=val)
+                        ap(c, font=norm9, alignment=center_al,
+                           border=Border(left=med_side if pos == "left" else thin_side,
+                                        right=med_side if pos == "right" else thin_side,
+                                        top=top_bdr, bottom=thin_side))
+                data_col += 3
+
+            # Tail cells
+            bdr_tail = Border(left=thin_side, right=thin_side, top=top_bdr, bottom=thin_side)
+            if is_team:
+                c = ws.cell(row=row_num, column=data_col, value=boat_total if boat_total is not None else "")
+                ap(c, font=bold9, alignment=center_al, border=bdr_tail); data_col += 1
+                c = ws.cell(row=row_num, column=data_col, value=team_total_val)
+                ap(c, font=bold9 if team_total_val != "" else norm9, alignment=center_al, border=bdr_tail)
+            else:
+                c = ws.cell(row=row_num, column=data_col, value=boat_total if boat_total is not None else "")
+                ap(c, font=bold9, alignment=center_al, border=bdr_tail)
+
+        if not is_team:
+            standings = calculate_individual_standings(tournament_id, db)
+            # Filter to sheet's class if applicable
+            if sheet_class:
+                boat_ids_in_class = {b.id for b in boats}
+                standings = [s for s in standings if s["boat_id"] in boat_ids_in_class]
+            boat_map = {b.id: b for b in all_boats}
+            for item in standings:
+                boat = boat_map.get(item["boat_id"])
+                if boat is None:
+                    continue
+                write_boat_row(current_row, item["rank"], boat.organization_name or "",
+                               boat, item["net_points"], "", True)
+                current_row += 1
+        else:
+            # Group boats by team
+            team_boats_map: dict[str, list] = {}
+            for boat in boats:
+                team = boat.team_name or boat.organization_name or "未設定"
+                team_boats_map.setdefault(team, []).append(boat)
+
+            def boat_net(boat_id: int) -> int:
+                return sum(
+                    (race_result_map.get((r.id, boat_id)) or {}).get("points") or 0
+                    for r in races
+                )
+
+            def team_net(tname: str) -> int:
+                total = 0
+                for race in races:
+                    pts_list = sorted(
+                        p for b in team_boats_map[tname]
+                        if (p := (race_result_map.get((race.id, b.id)) or {}).get("points")) is not None
+                    )
+                    total += sum(pts_list[:team_size])
+                return total
+
+            sorted_teams = sorted(team_boats_map.keys(), key=team_net)
+            for rank, tname in enumerate(sorted_teams, 1):
+                t_total = team_net(tname)
+                for i, boat in enumerate(team_boats_map[tname]):
+                    write_boat_row(
+                        current_row,
+                        rank if i == 0 else "",
+                        tname if i == 0 else "",
+                        boat,
+                        boat_net(boat.id),
+                        t_total if i == 0 else "",
+                        i == 0,
+                    )
+                    current_row += 1
+
+        # ── Race info footer (per race in its own columns) ─────────────────────
+        footer_labels = ["レース日", "天気", "風向", "風速", "スタート時刻",
+                         "フィニッシュ(Top)", "フィニッシュ(Last)"]
+        footer_start = current_row + 2
+
+        # label column (col 1)
+        for fi, label in enumerate(footer_labels):
+            r = footer_start + fi
+            c = ws.cell(row=r, column=1, value=label)
+            ap(c, fill=gray_fill, font=bold9, alignment=left_al, border=tb())
+
+        for ri, race in enumerate(races):
+            base_col = N_FIXED + ri * 3 + 1  # first col of this race's group
+            vals = [
+                getattr(race, "race_date",         "") or "",
+                getattr(race, "weather",            "") or "",
+                getattr(race, "wind_direction",     "") or "",
+                getattr(race, "wind_speed",         "") or "",
+                getattr(race, "start_time",         "") or "",
+                getattr(race, "finish_time_top",    "") or "",
+                getattr(race, "finish_time_last",   "") or "",
+            ]
+            for fi, val in enumerate(vals):
+                r = footer_start + fi
+                ws.merge_cells(start_row=r, start_column=base_col,
+                               end_row=r, end_column=base_col + 2)
+                c = ws.cell(row=r, column=base_col, value=val)
+                ap(c, font=norm9, alignment=center_al, border=tb())
+
+        # ── Column widths ─────────────────────────────────────────────────────
+        col_widths = {1: 5, 2: 8, 3: 18, 4: 7, 5: 10, 6: 14, 7: 14}
+        for ci, w in col_widths.items():
+            ws.column_dimensions[get_column_letter(ci)].width = w
+        for ri2 in range(n_races):
+            base = N_FIXED + ri2 * 3
+            ws.column_dimensions[get_column_letter(base + 1)].width = 6
+            ws.column_dimensions[get_column_letter(base + 2)].width = 6
+            ws.column_dimensions[get_column_letter(base + 3)].width = 6
+        tail_base = N_FIXED + n_races * 3 + 1
+        ws.column_dimensions[get_column_letter(tail_base)].width = 8
+        if is_team:
+            ws.column_dimensions[get_column_letter(tail_base + 1)].width = 9
+
+        ws.freeze_panes = ws.cell(row=data_start, column=1)
+
+    # ─── Build workbook ────────────────────────────────────────────────────────
+    wb = Workbook()
+    wb.remove(wb.active)  # remove default empty sheet
+
+    if len(classes) >= 2:
+        for cls in classes:
+            cls_boats = [b for b in all_boats if b.boat_class == cls]
+            write_sheet(wb, cls, cls_boats, cls)
+
+        # 総合 sheet: team totals across all classes
+        ws_total = wb.create_sheet(title="総合")
+        n_classes = len(classes)
+        total_cols_ov = 2 + n_classes + 1  # 順位, 大学名, [class cols...], 合計
+
+        date_str2 = date_str
+        ws_total.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols_ov)
+        c = ws_total.cell(row=1, column=1, value=f"{tournament.name}  総合")
+        c.font = Font(bold=True, size=13)
+
+        ov_hdrs = ["順位", "大学名"] + classes + ["合計得点"]
+        for ci, h in enumerate(ov_hdrs, 1):
+            c = ws_total.cell(row=3, column=ci, value=h)
+            ap(c, fill=navy_fill, font=hdr_font, alignment=center_al, border=tb())
+        ws_total.row_dimensions[3].height = 20
+
+        # Compute team totals per class
+        def class_team_total(tname: str, cls: str) -> int:
+            cls_boats_t = [b for b in all_boats if b.boat_class == cls
+                          and (b.team_name or b.organization_name) == tname]
             total = 0
             for race in races:
                 pts_list = sorted(
-                    p for b in team_boats_map[team_name]
+                    p for b in cls_boats_t
                     if (p := (race_result_map.get((race.id, b.id)) or {}).get("points")) is not None
                 )
                 total += sum(pts_list[:team_size])
             return total
 
-        sorted_teams = sorted(team_boats_map.keys(), key=team_total_pts)
+        all_team_names = sorted({
+            (b.team_name or b.organization_name or "未設定")
+            for b in all_boats
+        })
 
-        for rank, team_name in enumerate(sorted_teams, 1):
-            t_total = team_total_pts(team_name)
-            team_boat_list = team_boats_map[team_name]
-            for i, boat in enumerate(team_boat_list):
-                b_total = boat_total_pts(boat.id)
-                rank_val  = rank      if i == 0 else ""
-                univ_val  = team_name if i == 0 else ""
-                team_val  = t_total   if i == 0 else ""
-                write_boat_row(ws, current_row, rank_val, univ_val,
-                               boat, races, race_result_map,
-                               b_total, team_val, True, i == 0)
-                current_row += 1
+        team_grand = {t: sum(class_team_total(t, cls) for cls in classes) for t in all_team_names}
+        sorted_ov = sorted(all_team_names, key=lambda t: team_grand[t])
 
-    # ─── Race info footer ─────────────────────────────────────────────────────
-    footer_start = current_row + 2
-    footer_labels = ["レース", "日付", "天気", "風向", "風速", "スタート", "Finish Top", "Finish Last"]
-    label_col = 1
+        for rank, tname in enumerate(sorted_ov, 1):
+            row_num = rank + 3
+            ws_total.cell(row=row_num, column=1, value=rank).border = tb()
+            ws_total.cell(row=row_num, column=1).font = bold9
+            ws_total.cell(row=row_num, column=1).alignment = center_al
+            ws_total.cell(row=row_num, column=2, value=tname).border = tb()
+            ws_total.cell(row=row_num, column=2).font = bold9
+            for ci, cls in enumerate(classes, 3):
+                ws_total.cell(row=row_num, column=ci, value=class_team_total(tname, cls)).border = tb()
+                ws_total.cell(row=row_num, column=ci).alignment = center_al
+                ws_total.cell(row=row_num, column=ci).font = norm9
+            grand_col = 2 + n_classes + 1
+            ws_total.cell(row=row_num, column=grand_col, value=team_grand[tname]).border = tb()
+            ws_total.cell(row=row_num, column=grand_col).font = bold9
+            ws_total.cell(row=row_num, column=grand_col).alignment = center_al
 
-    for fi, label in enumerate(footer_labels):
-        r = footer_start + fi
-        c = ws.cell(row=r, column=label_col, value=label)
-        apply(c, fill=navy_fill if fi == 0 else gray_fill,
-              font=hdr_font if fi == 0 else bold9,
-              alignment=center_al if fi == 0 else left_al,
-              border=thin_border())
+        ws_total.column_dimensions["A"].width = 5
+        ws_total.column_dimensions["B"].width = 20
+        for ci in range(3, 3 + n_classes + 1):
+            ws_total.column_dimensions[get_column_letter(ci)].width = 12
 
-    for ri, race in enumerate(races):
-        data_col = label_col + 1 + ri
-        vals = [
-            f"R{race.race_number}",
-            getattr(race, "race_date", "") or "",
-            getattr(race, "weather", "") or "",
-            getattr(race, "wind_direction", "") or "",
-            getattr(race, "wind_speed", "") or "",
-            getattr(race, "start_time", "") or "",
-            getattr(race, "finish_time_top", "") or "",
-            getattr(race, "finish_time_last", "") or "",
-        ]
-        for fi, val in enumerate(vals):
-            r = footer_start + fi
-            c = ws.cell(row=r, column=data_col, value=val)
-            apply(c, fill=navy_fill if fi == 0 else None,
-                  font=hdr_font if fi == 0 else norm9,
-                  alignment=center_al,
-                  border=thin_border())
-
-    # ─── Column widths ────────────────────────────────────────────────────────
-    col_widths = {1: 5, 2: 18, 3: 7, 4: 7, 5: 10, 6: 13, 7: 13}
-    for col_idx, width in col_widths.items():
-        ws.column_dimensions[get_column_letter(col_idx)].width = width
-
-    for ri in range(n_races):
-        base = n_fixed + ri * 3
-        ws.column_dimensions[get_column_letter(base + 1)].width = 5
-        ws.column_dimensions[get_column_letter(base + 2)].width = 6
-        ws.column_dimensions[get_column_letter(base + 3)].width = 6
-
-    tail_base = n_fixed + n_races * 3
-    ws.column_dimensions[get_column_letter(tail_base + 1)].width = 8
-    if is_team:
-        ws.column_dimensions[get_column_letter(tail_base + 2)].width = 9
-
-    # freeze panes below header
-    ws.freeze_panes = ws.cell(row=data_start, column=1)
+    elif len(classes) == 1:
+        cls_boats = [b for b in all_boats if b.boat_class == classes[0]]
+        write_sheet(wb, classes[0], cls_boats, classes[0])
+    else:
+        write_sheet(wb, "成績", all_boats, None)
 
     return wb
 

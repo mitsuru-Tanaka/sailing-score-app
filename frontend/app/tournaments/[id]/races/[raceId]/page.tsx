@@ -482,6 +482,51 @@ export default function RaceResultPage() {
   // datalist boats filtered by active class
   const datalistBoats = activeClass === "ALL" ? boats : boats.filter((b) => b.boat_class === activeClass);
 
+  function focusFinCell(row: number, col: number) {
+    const el = document.getElementById(`fin-${activeClass}-${row}-${col}`);
+    if (el) (el as HTMLInputElement).focus();
+  }
+
+  function handleFinKeyDown(e: React.KeyboardEvent<HTMLInputElement>, row: number, col: number) {
+    const maxRow = finishRows.length - 1;
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      if (row < maxRow) focusFinCell(row + 1, col);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (row > 0) focusFinCell(row - 1, col);
+    } else if (e.key === "Tab" && !e.shiftKey && col === 0) {
+      e.preventDefault();
+      focusFinCell(row, 1);
+    } else if (e.key === "Tab" && e.shiftKey && col === 1) {
+      e.preventDefault();
+      focusFinCell(row, 0);
+    } else if (e.key === "ArrowRight" && col === 0) {
+      e.preventDefault();
+      focusFinCell(row, 1);
+    } else if (e.key === "ArrowLeft" && col === 1) {
+      e.preventDefault();
+      focusFinCell(row, 0);
+    }
+  }
+
+  function handleFinPaste(e: React.ClipboardEvent<HTMLInputElement>, startRow: number, startCol: number) {
+    const text = e.clipboardData.getData("text");
+    if (!text.includes("\t") && !text.includes("\n")) return;
+    e.preventDefault();
+    const lines = text.split(/\r?\n/).filter((l) => l !== "");
+    lines.forEach((line, rowOffset) => {
+      const cells = line.split("\t");
+      cells.forEach((val, colOffset) => {
+        const targetRow = startRow + rowOffset;
+        const targetCol = startCol + colOffset;
+        if (targetRow < finishRows.length && targetCol <= 1) {
+          updateFinishRow(targetRow, targetCol === 0 ? "sailInput" : "entryInput", val.trim());
+        }
+      });
+    });
+  }
+
   // Real-time validation: detect duplicates and unknown boats in current class slot
   const _usedIds = new Set<number>();
   const _dupIds = new Set<number>();
@@ -605,9 +650,12 @@ export default function RaceResultPage() {
                           </td>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}` }}>
                             <input
+                              id={`fin-${activeClass}-${i}-0`}
                               list="sail-list"
                               value={row.sailInput}
                               onChange={(e) => updateFinishRow(i, "sailInput", e.target.value)}
+                              onKeyDown={(e) => handleFinKeyDown(e, i, 0)}
+                              onPaste={(e) => handleFinPaste(e, i, 0)}
                               placeholder="例: FJ1234"
                               style={{ ...inpStyle("110px"), borderColor: finishRowErrors[i] ? "#dc2626" : "#94adc8" }}
                             />
@@ -617,9 +665,12 @@ export default function RaceResultPage() {
                           </td>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}` }}>
                             <input
+                              id={`fin-${activeClass}-${i}-1`}
                               list="entry-list"
                               value={row.entryInput}
                               onChange={(e) => updateFinishRow(i, "entryInput", e.target.value)}
+                              onKeyDown={(e) => handleFinKeyDown(e, i, 1)}
+                              onPaste={(e) => handleFinPaste(e, i, 1)}
                               placeholder="例: 12"
                               style={inpStyle("80px")}
                             />
