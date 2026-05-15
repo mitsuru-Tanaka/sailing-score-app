@@ -41,6 +41,7 @@ class TournamentOut(BaseModel):
     event_template: str
     notes: str | None = None
     owner_id: str | None = None
+    deleted_at: str | None = None
 
     class Config:
         from_attributes = True

@@ -1,5 +1,6 @@
 import os
 import math
+from datetime import datetime, timezone
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -72,6 +73,7 @@ _MIGRATIONS = [
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS nsc_rule TEXT NOT NULL DEFAULT 'STARTERS_PLUS_1'",
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS dne_rule TEXT NOT NULL DEFAULT 'STARTERS_PLUS_1'",
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS custom_result_codes TEXT",
+    "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS deleted_at TEXT",
 ]
 
 for _sql in _MIGRATIONS:
@@ -1256,17 +1258,41 @@ def build_overall_section_v3(class_sections: list[dict]) -> dict:
 def read_root():
     return {"message": "Hello Sailing App"}
 
+@app.get("/users/me", response_model=UserOut)
+def get_current_user_info(current_user=Depends(get_current_user)):
+    return current_user
+
+
 @app.get("/tournaments", response_model=list[TournamentOut])
 def get_tournaments(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role == "admin":
-        return db.query(Tournament).all()
+        return db.query(Tournament).filter(Tournament.deleted_at == None).all()
     ids = [
         m.tournament_id
         for m in db.query(TournamentMember)
             .filter(TournamentMember.user_id == current_user.id)
             .all()
     ]
-    return db.query(Tournament).filter(Tournament.id.in_(ids)).all()
+    return db.query(Tournament).filter(
+        Tournament.id.in_(ids),
+        Tournament.deleted_at == None,
+    ).all()
+
+
+@app.get("/tournaments/trash", response_model=list[TournamentOut])
+def get_trash(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role == "admin":
+        return db.query(Tournament).filter(Tournament.deleted_at != None).all()
+    owner_ids = [
+        m.tournament_id
+        for m in db.query(TournamentMember)
+            .filter(TournamentMember.user_id == current_user.id, TournamentMember.role == "owner")
+            .all()
+    ]
+    return db.query(Tournament).filter(
+        Tournament.id.in_(owner_ids),
+        Tournament.deleted_at != None,
+    ).all()
 
 @app.post("/tournaments", response_model=TournamentOut)
 def create_tournament(
@@ -1954,17 +1980,53 @@ def update_tournament(
 
 
 @app.delete("/tournaments/{tournament_id}", status_code=204)
-def delete_tournament(
+def trash_tournament(
     tournament_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    """ゴミ箱に移動（ソフトデリート）"""
+    tournament = db.query(Tournament).filter(
+        Tournament.id == tournament_id, Tournament.deleted_at == None
+    ).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
     check_tournament_access(tournament_id, current_user, db, owner_only=True)
+    tournament.deleted_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
 
-    # Cascade: race results → races → boats → members → rule_config → tournament
+
+@app.post("/tournaments/{tournament_id}/restore", status_code=204)
+def restore_tournament(
+    tournament_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """ゴミ箱から復元"""
+    tournament = db.query(Tournament).filter(
+        Tournament.id == tournament_id, Tournament.deleted_at != None
+    ).first()
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="Tournament not found in trash")
+    check_tournament_access(tournament_id, current_user, db, owner_only=True)
+    tournament.deleted_at = None
+    db.commit()
+
+
+@app.delete("/tournaments/{tournament_id}/permanent", status_code=204)
+def permanently_delete_tournament(
+    tournament_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """完全削除（ゴミ箱からのみ）"""
+    tournament = db.query(Tournament).filter(
+        Tournament.id == tournament_id, Tournament.deleted_at != None
+    ).first()
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="Tournament not found in trash")
+    check_tournament_access(tournament_id, current_user, db, owner_only=True)
+
     for race in db.query(Race).filter(Race.tournament_id == tournament_id).all():
         db.query(RaceResult).filter(RaceResult.race_id == race.id).delete()
     db.query(Race).filter(Race.tournament_id == tournament_id).delete()

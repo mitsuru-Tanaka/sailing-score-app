@@ -36,6 +36,7 @@ class Tournament(Base):
     notes = Column(String, nullable=True)
     event_template = Column(String, nullable=False, default="INDIVIDUAL")
     owner_id = Column(String, ForeignKey("users.id"), nullable=True)
+    deleted_at = Column(String, nullable=True)
 
 class Series(Base):
     __tablename__ = "series"

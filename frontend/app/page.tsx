@@ -17,6 +17,8 @@ type Tournament = {
   event_template: string;
   notes?: string | null;
   class_config?: string | null;
+  owner_id?: string | null;
+  deleted_at?: string | null;
 };
 
 const NAV = "#1F4E78";
@@ -78,6 +80,14 @@ export default function Home() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashTournaments, setTrashTournaments] = useState<Tournament[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [restoring, setRestoring] = useState<number | null>(null);
+  const [permanentDeleteId, setPermanentDeleteId] = useState<number | null>(null);
+  const [permanentDeleting, setPermanentDeleting] = useState(false);
 
   const [name, setName] = useState("");
   const [shortName, setShortName] = useState("");
@@ -110,7 +120,37 @@ export default function Home() {
     }
   }
 
-  useEffect(() => { fetchTournaments(); }, []);
+  async function fetchCurrentUser() {
+    try {
+      const res = await apiFetch("/users/me");
+      if (!res.ok) return;
+      const u = await res.json();
+      setCurrentUserId(u.id);
+      setCurrentUserRole(u.role);
+    } catch { /* auth disabled or not logged in */ }
+  }
+
+  async function fetchTrash() {
+    setTrashLoading(true);
+    try {
+      const res = await apiFetch("/tournaments/trash");
+      if (!res.ok) throw new Error();
+      setTrashTournaments(await res.json());
+    } catch {
+      setError("ゴミ箱の取得に失敗しました");
+    } finally {
+      setTrashLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchTournaments();
+    fetchCurrentUser();
+  }, []);
+
+  useEffect(() => {
+    if (showTrash) fetchTrash();
+  }, [showTrash]);
 
   function buildClassConfig() {
     const items: string[] = [];
@@ -157,11 +197,46 @@ export default function Home() {
       if (!res.ok) throw new Error();
       setTournaments(prev => prev.filter(t => t.id !== id));
     } catch {
-      setError("大会の削除に失敗しました");
+      setError("ゴミ箱への移動に失敗しました");
     } finally {
       setDeleting(false);
       setDeleteConfirmId(null);
     }
+  }
+
+  async function handleRestore(id: number) {
+    setRestoring(id);
+    try {
+      const res = await apiFetch(`/tournaments/${id}/restore`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      setTrashTournaments(prev => prev.filter(t => t.id !== id));
+      await fetchTournaments();
+    } catch {
+      setError("復元に失敗しました");
+    } finally {
+      setRestoring(null);
+    }
+  }
+
+  async function handlePermanentDelete(id: number) {
+    setPermanentDeleting(true);
+    try {
+      const res = await apiFetch(`/tournaments/${id}/permanent`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setTrashTournaments(prev => prev.filter(t => t.id !== id));
+    } catch {
+      setError("完全削除に失敗しました");
+    } finally {
+      setPermanentDeleting(false);
+      setPermanentDeleteId(null);
+    }
+  }
+
+  function canDelete(t: Tournament): boolean {
+    if (currentUserRole === "admin") return true;
+    if (!currentUserId) return false;
+    if (t.owner_id === null || t.owner_id === undefined) return true; // 旧データ
+    return t.owner_id === currentUserId;
   }
 
   return (
@@ -169,17 +244,32 @@ export default function Home() {
       {/* ヘッダー */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
         <h1 style={{ fontSize: "22px", fontWeight: "700", color: TEXT, margin: 0 }}>大会一覧</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          style={{
-            padding: "9px 18px",
-            backgroundColor: showForm ? "#64748b" : NAV,
-            color: WHITE, border: "none", borderRadius: "8px",
-            cursor: "pointer", fontSize: "14px", fontWeight: "600",
-          }}
-        >
-          {showForm ? "✕ 閉じる" : "+ 新規大会を作成"}
-        </button>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <button
+            onClick={() => setShowTrash(!showTrash)}
+            title="ゴミ箱"
+            style={{
+              padding: "9px 14px",
+              backgroundColor: showTrash ? "#fef2f2" : WHITE,
+              color: showTrash ? "#dc2626" : MUTED,
+              border: `1px solid ${showTrash ? "#fecaca" : BORDER}`,
+              borderRadius: "8px", cursor: "pointer", fontSize: "18px",
+            }}
+          >
+            🗑️
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            style={{
+              padding: "9px 18px",
+              backgroundColor: showForm ? "#64748b" : NAV,
+              color: WHITE, border: "none", borderRadius: "8px",
+              cursor: "pointer", fontSize: "14px", fontWeight: "600",
+            }}
+          >
+            {showForm ? "✕ 閉じる" : "+ 新規大会を作成"}
+          </button>
+        </div>
       </div>
 
       {/* 作成フォーム */}
@@ -322,16 +412,19 @@ export default function Home() {
                 >
                   開く →
                 </Link>
-                <button
-                  onClick={() => setDeleteConfirmId(t.id)}
-                  style={{
-                    padding: "6px 12px", backgroundColor: WHITE, color: "#dc2626",
-                    border: "1px solid #fecaca", borderRadius: "6px",
-                    cursor: "pointer", fontSize: "12px", fontWeight: "600",
-                  }}
-                >
-                  削除
-                </button>
+                {canDelete(t) && (
+                  <button
+                    onClick={() => setDeleteConfirmId(t.id)}
+                    title="ゴミ箱に移動"
+                    style={{
+                      padding: "6px 10px", backgroundColor: WHITE, color: "#dc2626",
+                      border: "1px solid #fecaca", borderRadius: "6px",
+                      cursor: "pointer", fontSize: "16px", lineHeight: 1,
+                    }}
+                  >
+                    🗑️
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -348,13 +441,11 @@ export default function Home() {
             maxWidth: "400px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
           }}>
             <div style={{ fontSize: "18px", fontWeight: "700", color: TEXT, marginBottom: "10px" }}>
-              大会を削除しますか？
-            </div>
-            <div style={{ fontSize: "14px", color: "#dc2626", marginBottom: "8px", fontWeight: "600" }}>
-              この操作は取り消せません。
+              🗑️ ゴミ箱に移動しますか？
             </div>
             <div style={{ fontSize: "13px", color: MUTED, marginBottom: "24px" }}>
-              大会に紐づくすべてのレース・成績・艇データが削除されます。
+              ゴミ箱に移動します。ゴミ箱から復元できます。<br />
+              完全に削除するにはゴミ箱から削除してください。
             </div>
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
               <button
@@ -379,7 +470,117 @@ export default function Home() {
                   opacity: deleting ? 0.7 : 1,
                 }}
               >
-                {deleting ? "削除中..." : "削除する"}
+                {deleting ? "移動中..." : "ゴミ箱に移動"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ゴミ箱セクション */}
+      {showTrash && (
+        <div style={{ marginTop: "40px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: "700", color: "#dc2626", margin: 0 }}>🗑️ ゴミ箱</h2>
+            {trashTournaments.length > 0 && (
+              <span style={{ fontSize: "13px", color: MUTED }}>{trashTournaments.length}件</span>
+            )}
+          </div>
+          {trashLoading ? (
+            <p style={{ color: MUTED, fontSize: "14px" }}>読み込み中...</p>
+          ) : trashTournaments.length === 0 ? (
+            <p style={{ color: MUTED, fontSize: "14px" }}>ゴミ箱は空です</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {trashTournaments.map((t) => (
+                <div key={t.id} style={{
+                  ...CARD,
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "16px 20px", opacity: 0.85, borderColor: "#fecaca",
+                }}>
+                  <div>
+                    <div style={{ fontSize: "15px", fontWeight: "700", color: TEXT }}>{t.name}</div>
+                    {t.deleted_at && (
+                      <div style={{ fontSize: "12px", color: MUTED, marginTop: "2px" }}>
+                        {new Date(t.deleted_at).toLocaleString("ja-JP")} に移動
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={() => handleRestore(t.id)}
+                      disabled={restoring === t.id}
+                      style={{
+                        padding: "7px 16px", backgroundColor: WHITE, color: NAV,
+                        border: `1px solid ${NAV}`, borderRadius: "6px",
+                        cursor: restoring === t.id ? "not-allowed" : "pointer",
+                        fontSize: "13px", fontWeight: "600",
+                        opacity: restoring === t.id ? 0.6 : 1,
+                      }}
+                    >
+                      {restoring === t.id ? "復元中..." : "元に戻す"}
+                    </button>
+                    <button
+                      onClick={() => setPermanentDeleteId(t.id)}
+                      style={{
+                        padding: "7px 16px", backgroundColor: "#fef2f2", color: "#dc2626",
+                        border: "1px solid #fecaca", borderRadius: "6px",
+                        cursor: "pointer", fontSize: "13px", fontWeight: "600",
+                      }}
+                    >
+                      完全に削除
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 完全削除確認モーダル */}
+      {permanentDeleteId !== null && (
+        <div style={{
+          position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: WHITE, borderRadius: "12px", padding: "28px 32px",
+            maxWidth: "400px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+          }}>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: TEXT, marginBottom: "10px" }}>
+              完全に削除しますか？
+            </div>
+            <div style={{ fontSize: "14px", color: "#dc2626", marginBottom: "8px", fontWeight: "600" }}>
+              この操作は取り消せません。
+            </div>
+            <div style={{ fontSize: "13px", color: MUTED, marginBottom: "24px" }}>
+              大会に紐づくすべてのレース・成績・艇データが完全に削除されます。
+            </div>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setPermanentDeleteId(null)}
+                disabled={permanentDeleting}
+                style={{
+                  padding: "9px 18px", backgroundColor: WHITE, color: MUTED,
+                  border: `1px solid ${BORDER}`, borderRadius: "8px",
+                  cursor: "pointer", fontSize: "14px",
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => handlePermanentDelete(permanentDeleteId)}
+                disabled={permanentDeleting}
+                style={{
+                  padding: "9px 18px", backgroundColor: "#dc2626", color: WHITE,
+                  border: "none", borderRadius: "8px",
+                  cursor: permanentDeleting ? "not-allowed" : "pointer",
+                  fontSize: "14px", fontWeight: "600",
+                  opacity: permanentDeleting ? 0.7 : 1,
+                }}
+              >
+                {permanentDeleting ? "削除中..." : "完全に削除する"}
               </button>
             </div>
           </div>
