@@ -257,7 +257,7 @@ class BoatDetailRow(BaseModel):
 class TeamClassBlock(BaseModel):
     rank: int
     team_name: str
-    team_race_totals: list[int]
+    team_race_totals: list[int | None]
     team_total: int
     boats: list[BoatDetailRow]
 

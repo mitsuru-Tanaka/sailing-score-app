@@ -466,7 +466,9 @@ function V2SectionView({
                       {row.race_points[idx] ?? "-"}
                     </td>
                   ))}
-                  <td style={{ padding: "10px", textAlign: "right", borderBottom: ROW_SEP }}>{row.total_points}</td>
+                  <td style={{ padding: "10px", textAlign: "right", borderBottom: ROW_SEP }}>
+                    {row.race_points.some(p => p !== null) ? row.total_points : "-"}
+                  </td>
                   <td style={{ padding: "10px", textAlign: "right", borderBottom: ROW_SEP }}>
                     {row.discarded_points.length > 0 ? row.discarded_points.join(", ") : "-"}
                   </td>
@@ -479,7 +481,7 @@ function V2SectionView({
                       color: HEADER_BG,
                     }}
                   >
-                    {row.net_points}
+                    {row.race_points.some(p => p !== null) ? row.net_points : "-"}
                   </td>
                 </tr>
               ))}

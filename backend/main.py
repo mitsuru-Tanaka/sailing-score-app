@@ -262,7 +262,12 @@ def calculate_individual_standings(tournament_id: int, db: Session):
             }
         )
 
-    standings.sort(key=lambda x: (x["net_points"], x["total_points"], x["boat_number"]))
+    standings.sort(key=lambda x: (
+        0 if any(p is not None for p in x["race_points"]) else 1,
+        x["net_points"],
+        x["total_points"],
+        x["boat_number"] or ""
+    ))
 
     for i, row in enumerate(standings, start=1):
         row["rank"] = i
@@ -333,13 +338,19 @@ def calculate_team_standings(tournament_id: int, db: Session, team_size: int):
         total_points = 0
 
         for race in races:
-            points_list = race_team_points[race.id].get(team_name, [])
-            points_list = sorted(points_list)
+            points_list = sorted(race_team_points[race.id].get(team_name, []))
+            if len(points_list) == 0:
+                race_points.append(None)
+            else:
+                adopted = sum(points_list[:team_size])
+                race_points.append(adopted)
+                total_points += adopted
 
-            adopted_points = sum(points_list[:team_size]) if len(points_list) > 0 else 0
-            race_points.append(adopted_points)
-            total_points += adopted_points
-
+        is_incomplete = any(
+            0 < len(race_team_points[race.id].get(team_name, [])) < team_size
+            for race in races
+        )
+        has_any = any(p is not None for p in race_points)
         standings.append(
             {
                 "boat_id": 0,
@@ -351,10 +362,13 @@ def calculate_team_standings(tournament_id: int, db: Session, team_size: int):
                 "discarded_points": [],
                 "net_points": total_points,
                 "rank": 0,
+                "_sort_group": 0 if (has_any and not is_incomplete) else (1 if has_any else 2),
             }
         )
 
-    standings.sort(key=lambda x: (x["net_points"], x["organization_name"]))
+    standings.sort(key=lambda x: (x["_sort_group"], x["net_points"], x["organization_name"]))
+    for row in standings:
+        del row["_sort_group"]
 
     for i, row in enumerate(standings, start=1):
         row["rank"] = i
@@ -814,13 +828,19 @@ def calculate_team_standings_by_class(
         total_points = 0
 
         for race in races:
-            points_list = race_team_points[race.id].get(team_name, [])
-            points_list = sorted(points_list)
+            points_list = sorted(race_team_points[race.id].get(team_name, []))
+            if len(points_list) == 0:
+                race_points.append(None)
+            else:
+                adopted = sum(points_list[:team_size])
+                race_points.append(adopted)
+                total_points += adopted
 
-            adopted_points = sum(points_list[:team_size]) if len(points_list) > 0 else 0
-            race_points.append(adopted_points)
-            total_points += adopted_points
-
+        is_incomplete = any(
+            0 < len(race_team_points[race.id].get(team_name, [])) < team_size
+            for race in races
+        )
+        has_any = any(p is not None for p in race_points)
         standings.append(
             {
                 "boat_id": 0,
@@ -832,10 +852,13 @@ def calculate_team_standings_by_class(
                 "discarded_points": [],
                 "net_points": total_points,
                 "rank": 0,
+                "_sort_group": 0 if (has_any and not is_incomplete) else (1 if has_any else 2),
             }
         )
 
-    standings.sort(key=lambda x: (x["net_points"], x["organization_name"]))
+    standings.sort(key=lambda x: (x["_sort_group"], x["net_points"], x["organization_name"]))
+    for row in standings:
+        del row["_sort_group"]
 
     for i, row in enumerate(standings, start=1):
         row["rank"] = i
@@ -987,19 +1010,31 @@ def calculate_class_section_v3(
                 for row in boat_rows
                 if row["race_points"][race_idx] is not None
             )
-            adopted = sum(per_race[:team_size])
-            team_race_totals.append(adopted)
-            team_total += adopted
+            if len(per_race) == 0:
+                team_race_totals.append(None)
+            else:
+                adopted = sum(per_race[:team_size])
+                team_race_totals.append(adopted)
+                team_total += adopted
 
+        is_incomplete = any(
+            0 < sum(1 for row in boat_rows if row["race_points"][i] is not None) < team_size
+            for i in range(len(races))
+            if any(row["race_points"][i] is not None for row in boat_rows)
+        )
+        has_any = any(t is not None for t in team_race_totals)
         team_blocks.append({
             "team_name": tname,
             "boats": boat_rows,
             "team_race_totals": team_race_totals,
             "team_total": team_total,
             "rank": 0,
+            "_sort_group": 0 if (has_any and not is_incomplete) else (1 if has_any else 2),
         })
 
-    team_blocks.sort(key=lambda x: (x["team_total"], x["team_name"]))
+    team_blocks.sort(key=lambda x: (x["_sort_group"], x["team_total"], x["team_name"]))
+    for block in team_blocks:
+        del block["_sort_group"]
     for i, block in enumerate(team_blocks, start=1):
         block["rank"] = i
 

@@ -482,6 +482,32 @@ export default function RaceResultPage() {
   // datalist boats filtered by active class
   const datalistBoats = activeClass === "ALL" ? boats : boats.filter((b) => b.boat_class === activeClass);
 
+  // Real-time validation: detect duplicates and unknown boats in current class slot
+  const _usedIds = new Set<number>();
+  const _dupIds = new Set<number>();
+  finishRows.forEach((row) => {
+    if (row.boatId !== null) {
+      if (_usedIds.has(row.boatId)) _dupIds.add(row.boatId);
+      else _usedIds.add(row.boatId);
+    }
+  });
+  penaltyEntries.forEach((e) => {
+    if (e.boatId !== null) {
+      if (_usedIds.has(e.boatId)) _dupIds.add(e.boatId);
+      else _usedIds.add(e.boatId);
+    }
+  });
+  const finishRowErrors: Record<number, string> = {};
+  finishRows.forEach((row, i) => {
+    if (row.sailInput && row.boatId === null) {
+      finishRowErrors[i] = "未登録";
+    } else if (row.boatId !== null && _dupIds.has(row.boatId)) {
+      finishRowErrors[i] = "重複";
+    }
+  });
+  // Boats already used in finish rows (for filtering penalty dropdown)
+  const finishUsedIds = new Set(finishRows.filter((r) => r.boatId !== null).map((r) => r.boatId!));
+
   return (
     <>
       <TournamentNav id={tournamentId} name={tournament?.name ?? ""} />
@@ -583,8 +609,11 @@ export default function RaceResultPage() {
                               value={row.sailInput}
                               onChange={(e) => updateFinishRow(i, "sailInput", e.target.value)}
                               placeholder="例: FJ1234"
-                              style={inpStyle("110px")}
+                              style={{ ...inpStyle("110px"), borderColor: finishRowErrors[i] ? "#dc2626" : "#94adc8" }}
                             />
+                            {finishRowErrors[i] && (
+                              <div style={{ color: "#dc2626", fontSize: "10px", marginTop: "2px" }}>{finishRowErrors[i]}</div>
+                            )}
                           </td>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}` }}>
                             <input
@@ -634,7 +663,7 @@ export default function RaceResultPage() {
                     const entryBoat = entry.boatId ? boats.find((b) => b.id === entry.boatId) : undefined;
                     return (
                       <div key={entry.key} style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px", backgroundColor: "#f8fafc", borderRadius: "8px", border: `1px solid ${BORDER}`, flexWrap: "wrap" }}>
-                        {/* Boat selector — filtered by active class */}
+                        {/* Boat selector — filtered by active class, excludes already-used boats */}
                         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                           <span style={{ fontSize: "11px", color: MUTED, fontWeight: "600" }}>艇</span>
                           <select
@@ -643,11 +672,17 @@ export default function RaceResultPage() {
                             style={{ padding: "6px 8px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "13px", outline: "none", minWidth: "200px", backgroundColor: WHITE }}
                           >
                             <option value="">艇を選択...</option>
-                            {activeBoats.map((b) => (
-                              <option key={b.id} value={b.id}>
-                                {b.sail_number}{b.entry_number != null ? ` (${b.entry_number})` : ""}{b.organization_name ? ` — ${b.organization_name}` : ""}
-                              </option>
-                            ))}
+                            {activeBoats
+                              .filter((b) => {
+                                if (b.id === entry.boatId) return true;
+                                if (finishUsedIds.has(b.id)) return false;
+                                return !penaltyEntries.some((e) => e.key !== entry.key && e.boatId === b.id);
+                              })
+                              .map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.sail_number}{b.entry_number != null ? ` (${b.entry_number})` : ""}{b.organization_name ? ` — ${b.organization_name}` : ""}
+                                </option>
+                              ))}
                           </select>
                           {entryBoat?.helmsman_name && (
                             <span style={{ fontSize: "11px", color: MUTED }}>{entryBoat.helmsman_name}</span>
