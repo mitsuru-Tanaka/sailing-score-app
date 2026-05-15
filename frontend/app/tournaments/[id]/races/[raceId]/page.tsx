@@ -135,17 +135,17 @@ export default function RaceResultPage() {
     if (!tournamentId || !raceId) return;
     setLoading(true);
     setError("");
-    const MAX_ATTEMPTS = 3;
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const DELAYS = [0, 2000, 5000, 10000];
+    for (let attempt = 0; attempt < DELAYS.length; attempt++) {
       try {
-        if (attempt > 0) await new Promise((r) => setTimeout(r, 1200 * attempt));
+        if (attempt > 0) await new Promise((r) => setTimeout(r, DELAYS[attempt]));
 
         const [tRes, racesRes, boatsRes, resultsRes, rulesRes] = await Promise.all([
-          apiFetch(`/tournaments/${tournamentId}`),
-          apiFetch(`/tournaments/${tournamentId}/races`),
-          apiFetch(`/tournaments/${tournamentId}/boats`),
-          apiFetch(`/races/${raceId}/results`),
-          apiFetch(`/tournaments/${tournamentId}/rules`),
+          apiFetch(`/tournaments/${tournamentId}`, { timeoutMs: 15000 }),
+          apiFetch(`/tournaments/${tournamentId}/races`, { timeoutMs: 15000 }),
+          apiFetch(`/tournaments/${tournamentId}/boats`, { timeoutMs: 15000 }),
+          apiFetch(`/races/${raceId}/results`, { timeoutMs: 15000 }),
+          apiFetch(`/tournaments/${tournamentId}/rules`, { timeoutMs: 15000 }),
         ]);
         if (!tRes.ok)       throw new Error("大会情報の取得に失敗しました");
         if (!racesRes.ok)   throw new Error("レース一覧の取得に失敗しました");
@@ -229,11 +229,10 @@ export default function RaceResultPage() {
         setLoading(false);
         return; // success
       } catch (err) {
-        if (attempt === MAX_ATTEMPTS - 1) {
+        if (attempt === DELAYS.length - 1) {
           setError(err instanceof Error ? err.message : "データ取得に失敗しました");
           setLoading(false);
         }
-        // else: loop continues with next attempt after delay
       }
     }
   }
