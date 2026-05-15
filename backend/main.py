@@ -1676,11 +1676,11 @@ def save_race_results(
     }
     class_pos_seen: dict[str, set] = {}
     for item in payload:
-        if item.result_code == "OK" and item.finish_position is not None:
+        if item.finish_position is not None:
             cls = boat_class_map.get(item.boat_id, "")
             seen = class_pos_seen.setdefault(cls, set())
             if item.finish_position in seen:
-                raise HTTPException(status_code=400, detail="Duplicate finish_position detected among OK results")
+                raise HTTPException(status_code=400, detail="Duplicate finish_position detected")
             seen.add(item.finish_position)
 
     # クラス別にエントリー数・スターター数を計算

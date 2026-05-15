@@ -39,6 +39,7 @@ type FinishRow = {
   boatId: number | null;
   sailInput: string;
   entryInput: string;
+  codeInput: string;  // "" = OK
 };
 
 type PenaltyEntry = {
@@ -171,7 +172,7 @@ export default function RaceResultPage() {
         const newSlots: Record<string, ClassSlot> = {};
         if (cls.length === 0) {
           newSlots["ALL"] = {
-            finish: boatsData.map(() => ({ boatId: null, sailInput: "", entryInput: "" })),
+            finish: boatsData.map(() => ({ boatId: null, sailInput: "", entryInput: "", codeInput: "" })),
             penalties: [],
           };
           setActiveClass("ALL");
@@ -179,7 +180,7 @@ export default function RaceResultPage() {
           for (const c of cls) {
             const cb = boatsData.filter((b) => b.boat_class === c);
             newSlots[c] = {
-              finish: cb.map(() => ({ boatId: null, sailInput: "", entryInput: "" })),
+              finish: cb.map(() => ({ boatId: null, sailInput: "", entryInput: "", codeInput: "" })),
               penalties: [],
             };
           }
@@ -192,13 +193,15 @@ export default function RaceResultPage() {
           const targetClass = cls.length === 0 ? "ALL" : (boat.boat_class ?? cls[0]);
           const s = newSlots[targetClass];
           if (!s) return;
-          if (result.result_code === "OK" && result.finish_position != null) {
+          const FINISH_TABLE_CODES = new Set(["OK", "DSQ", "NSC", "STP", "SCP", "ARB", "PRP", "ZFP"]);
+          if (result.finish_position != null && FINISH_TABLE_CODES.has(result.result_code)) {
             const idx = result.finish_position - 1;
             if (idx >= 0 && idx < s.finish.length) {
               s.finish[idx] = {
                 boatId: boat.id,
                 sailInput: boat.sail_number,
                 entryInput: boat.entry_number?.toString() ?? "",
+                codeInput: result.result_code === "OK" ? "" : result.result_code,
               };
             }
           } else if (result.result_code !== "OK") {
@@ -248,7 +251,7 @@ export default function RaceResultPage() {
   }
 
   // ---- Tab 1 helpers ----
-  function updateFinishRow(index: number, field: "sailInput" | "entryInput", value: string) {
+  function updateFinishRow(index: number, field: "sailInput" | "entryInput" | "codeInput", value: string) {
     setClassSlots((prev) => {
       const current = prev[activeClass] ?? emptySlot();
       const next = [...current.finish];
@@ -264,12 +267,13 @@ export default function RaceResultPage() {
         } else if (!value) {
           next[index].entryInput = "";
         }
-      } else {
+      } else if (field === "entryInput") {
         if (!value) return { ...prev, [activeClass]: { ...current, finish: next } };
         const found = activeBoats.find((b) => b.entry_number?.toString() === value);
         next[index].boatId = found?.id ?? null;
         if (found) next[index].sailInput = found.sail_number;
       }
+      // codeInput: no boat lookup needed, just update the field
       return { ...prev, [activeClass]: { ...current, finish: next } };
     });
   }
@@ -326,7 +330,7 @@ export default function RaceResultPage() {
     Object.values(classSlots).forEach((s) => {
       s.finish.forEach((row, i) => {
         if (row.boatId !== null) {
-          payload.set(row.boatId, { boat_id: row.boatId, finish_position: i + 1, result_code: "OK", note: null, manual_points: null });
+          payload.set(row.boatId, { boat_id: row.boatId, finish_position: i + 1, result_code: row.codeInput || "OK", note: null, manual_points: null });
         }
       });
       s.penalties.forEach((entry) => {
@@ -635,7 +639,7 @@ export default function RaceResultPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
                   <thead>
                     <tr style={{ backgroundColor: NAV, color: WHITE }}>
-                      {["着順", "Sail No.", "Entry No.", "大学名", "スキッパー"].map((h) => (
+                      {["着順", "Sail No.", "Entry No.", "コード", "大学名", "スキッパー"].map((h) => (
                         <th key={h} style={{ padding: "12px 14px", textAlign: "left", whiteSpace: "nowrap", fontWeight: "600", fontSize: "13px", borderRight: "1px solid rgba(255,255,255,0.1)" }}>
                           {h}
                         </th>
@@ -676,6 +680,22 @@ export default function RaceResultPage() {
                               placeholder="例: 12"
                               style={inpStyle("80px")}
                             />
+                          </td>
+                          <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}` }}>
+                            <select
+                              value={row.codeInput}
+                              onChange={(e) => updateFinishRow(i, "codeInput", e.target.value)}
+                              style={{ padding: "5px 6px", border: `1px solid ${row.codeInput ? "#f59e0b" : "#94adc8"}`, borderRadius: "6px", fontSize: "12px", fontWeight: row.codeInput ? "700" : "400", color: row.codeInput ? "#92400e" : TEXT, backgroundColor: row.codeInput ? "#fef3c7" : WHITE, cursor: "pointer", width: "72px" }}
+                            >
+                              <option value="">—</option>
+                              <option value="DSQ">DSQ</option>
+                              <option value="NSC">NSC</option>
+                              <option value="STP">STP</option>
+                              <option value="SCP">SCP</option>
+                              <option value="ZFP">ZFP</option>
+                              <option value="ARB">ARB</option>
+                              <option value="PRP">PRP</option>
+                            </select>
                           </td>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, color: boat ? TEXT : MUTED, fontSize: "13px" }}>
                             {boat?.organization_name ?? "—"}
