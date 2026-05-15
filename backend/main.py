@@ -96,13 +96,22 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
-def get_entries_count(tournament_id: int, db: Session) -> int:
-    return db.query(Boat).filter(Boat.tournament_id == tournament_id).count()
+def get_entries_count(tournament_id: int, db: Session, boat_class: str | None = None) -> int:
+    q = db.query(Boat).filter(Boat.tournament_id == tournament_id)
+    if boat_class is not None:
+        q = q.filter(Boat.boat_class == boat_class)
+    return q.count()
 
 
-def get_starters_count(payload: list[RaceResultInput]) -> int:
+def get_starters_count(payload: list[RaceResultInput], boat_class_map: dict[int, str] | None = None, boat_class: str | None = None) -> int:
     non_starters = {"DNC", "DNS"}
-    return sum(1 for item in payload if item.result_code not in non_starters)
+    if boat_class is None or boat_class_map is None:
+        return sum(1 for item in payload if item.result_code not in non_starters)
+    return sum(
+        1 for item in payload
+        if item.result_code not in non_starters
+        and boat_class_map.get(item.boat_id, "") == boat_class
+    )
 
 
 def apply_scoring_rule(rule_name: str, entries_count: int, starters_count: int) -> int:
@@ -1667,18 +1676,27 @@ def save_race_results(
                 raise HTTPException(status_code=400, detail="Duplicate finish_position detected among OK results")
             seen.add(item.finish_position)
 
-    entries_count = get_entries_count(tournament.id, db)
-    starters_count = get_starters_count(payload)
+    # クラス別にエントリー数・スターター数を計算
+    all_classes = set(boat_class_map.values())
+    class_entries: dict[str, int] = {
+        cls: get_entries_count(tournament.id, db, boat_class=cls or None)
+        for cls in all_classes
+    }
+    class_starters: dict[str, int] = {
+        cls: get_starters_count(payload, boat_class_map, cls)
+        for cls in all_classes
+    }
 
     db.query(RaceResult).filter(RaceResult.race_id == race_id).delete()
 
     new_results = []
     for item in payload:
+        cls = boat_class_map.get(item.boat_id, "")
         points = calculate_points_for_result(
             item=item,
             rule_config=rule_config,
-            entries_count=entries_count,
-            starters_count=starters_count,
+            entries_count=class_entries.get(cls, 0),
+            starters_count=class_starters.get(cls, 0),
         )
 
         new_result = RaceResult(
