@@ -4,6 +4,20 @@ import { apiFetch, API_BASE } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import TournamentNav from "../../../components/TournamentNav";
+import Image from "next/image";
+
+function ClassTabIcon({ tab }: { tab: string }) {
+  if (tab === "470") return (
+    <Image src="/470.svg" alt="470" width={20} height={24}
+      style={{ display: "inline-block", verticalAlign: "middle", marginRight: "6px", filter: "inherit" }} />
+  );
+  if (tab === "SNIPE") return (
+    <Image src="/snipe.svg" alt="SNIPE" width={20} height={24}
+      style={{ display: "inline-block", verticalAlign: "middle", marginRight: "6px", filter: "inherit" }} />
+  );
+  if (tab === "ALL") return <span style={{ marginRight: "4px" }}>⚓</span>;
+  return <span style={{ marginRight: "4px" }}>⛵</span>;
+}
 
 type Tournament = {
   id: number;
@@ -250,10 +264,17 @@ export default function BoatsPage() {
                   color: activeTab === tab ? WHITE : MUTED,
                   marginBottom: activeTab === tab ? "-2px" : "0",
                   borderBottom: activeTab === tab ? `2px solid ${NAV}` : "none",
+                  display: "flex", alignItems: "center", gap: "2px",
                 }}
               >
+                <span style={{
+                  display: "inline-flex", alignItems: "center",
+                  filter: activeTab === tab ? "brightness(0) invert(1)" : "opacity(0.55)",
+                }}>
+                  <ClassTabIcon tab={tab} />
+                </span>
                 {tab === "ALL" ? "全て" : tab}
-                <span style={{ marginLeft: "6px", fontSize: "12px", opacity: 0.75 }}>
+                <span style={{ marginLeft: "4px", fontSize: "12px", opacity: 0.75 }}>
                   ({tab === "ALL" ? boats.length : boats.filter(b => b.boat_class === tab).length})
                 </span>
               </button>
