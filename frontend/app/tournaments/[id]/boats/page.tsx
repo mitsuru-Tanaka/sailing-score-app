@@ -4,16 +4,16 @@ import { apiFetch, API_BASE } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import TournamentNav from "../../../components/TournamentNav";
-import Image from "next/image";
-
 function ClassTabIcon({ tab }: { tab: string }) {
   if (tab === "470") return (
-    <Image src="/470.svg" alt="470" width={20} height={24}
-      style={{ display: "inline-block", verticalAlign: "middle", marginRight: "6px", filter: "inherit" }} />
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/470.svg" alt="470"
+      style={{ display: "inline-block", height: "22px", width: "auto", verticalAlign: "middle", marginRight: "4px" }} />
   );
   if (tab === "SNIPE") return (
-    <Image src="/snipe.svg" alt="SNIPE" width={20} height={24}
-      style={{ display: "inline-block", verticalAlign: "middle", marginRight: "6px", filter: "inherit" }} />
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/snipe.svg" alt="SNIPE"
+      style={{ display: "inline-block", height: "22px", width: "auto", verticalAlign: "middle", marginRight: "4px" }} />
   );
   if (tab === "ALL") return <span style={{ marginRight: "4px" }}>⚓</span>;
   return <span style={{ marginRight: "4px" }}>⛵</span>;
