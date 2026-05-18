@@ -145,6 +145,9 @@ class RuleConfig(Base):
     dne_rule = Column(String, nullable=False, default="STARTERS_PLUS_1")
     custom_result_codes = Column(String, nullable=True)
     team_cut_method = Column(String, nullable=False, default="individual")
+    overall_tie_method = Column(String, nullable=False, default="kanto")
+    tie_fallback_extended = Column(Boolean, nullable=False, default=True)
+    tie_use_excluded_scores = Column(Boolean, nullable=False, default=True)
 
 
 class Race(Base):

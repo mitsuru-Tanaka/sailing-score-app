@@ -26,6 +26,9 @@ type RuleConfig = {
   dne_rule: string;
   custom_result_codes?: string | null;
   team_cut_method?: string;
+  overall_tie_method?: string;
+  tie_fallback_extended?: boolean;
+  tie_use_excluded_scores?: boolean;
 };
 
 const ruleOptions = ["STARTERS_PLUS_1", "ENTRIES_PLUS_1"];
@@ -81,6 +84,9 @@ export default function RulesPage() {
     nsc_rule: "STARTERS_PLUS_1",
     dne_rule: "STARTERS_PLUS_1",
     team_cut_method: "individual",
+    overall_tie_method: "kanto",
+    tie_fallback_extended: true,
+    tie_use_excluded_scores: true,
   });
   const [customCodes, setCustomCodes] = useState<string[]>([]);
   const [newCodeInput, setNewCodeInput] = useState("");
@@ -128,6 +134,9 @@ export default function RulesPage() {
         nsc_rule: data.nsc_rule ?? "STARTERS_PLUS_1",
         dne_rule: data.dne_rule ?? "STARTERS_PLUS_1",
         team_cut_method: data.team_cut_method ?? "individual",
+        overall_tie_method: data.overall_tie_method ?? "kanto",
+        tie_fallback_extended: data.tie_fallback_extended ?? true,
+        tie_use_excluded_scores: data.tie_use_excluded_scores ?? true,
       });
       setCustomCodes(
         data.custom_result_codes
@@ -156,6 +165,9 @@ export default function RulesPage() {
           nsc_rule: form.nsc_rule, dne_rule: form.dne_rule,
           custom_result_codes: customCodes.length > 0 ? customCodes.join(",") : null,
           team_cut_method: form.team_cut_method,
+          overall_tie_method: form.overall_tie_method,
+          tie_fallback_extended: form.tie_fallback_extended,
+          tie_use_excluded_scores: form.tie_use_excluded_scores,
         }),
       });
       if (!res.ok) { setError("ルール保存に失敗しました"); return; }
@@ -385,6 +397,124 @@ export default function RulesPage() {
                   </div>
                 </label>
               </div>
+            </div>
+          )}
+
+          {/* タイ処理設定（団体戦のみ） */}
+          {(eventTemplate === "TEAM_3_BOATS" || eventTemplate === "TEAM_4_BOATS") && (
+            <div style={{ ...CARD, marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "14px", fontWeight: "700", color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 0, marginBottom: "18px" }}>
+                タイ処理設定（団体戦）
+              </h2>
+
+              {/* 総合タイの処理方法 */}
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ fontSize: "13px", fontWeight: "700", color: TEXT, marginBottom: "10px" }}>総合タイの処理方法</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="overall_tie_method"
+                      value="kanto"
+                      checked={form.overall_tie_method === "kanto"}
+                      onChange={() => updateField("overall_tie_method", "kanto")}
+                      style={{ marginTop: "3px" }}
+                    />
+                    <div>
+                      <div style={{ fontSize: "14px", fontWeight: "600", color: TEXT }}>関東学連方式</div>
+                      <div style={{ fontSize: "12px", color: MUTED, marginTop: "2px" }}>両クラスの全レース得点を混ぜて良い順に並べて比較し、それでも解けない場合は最終レースの合計点で決定する。</div>
+                    </div>
+                  </label>
+                  <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="overall_tie_method"
+                      value="zennihon"
+                      checked={form.overall_tie_method === "zennihon"}
+                      onChange={() => updateField("overall_tie_method", "zennihon")}
+                      style={{ marginTop: "3px" }}
+                    />
+                    <div>
+                      <div style={{ fontSize: "14px", fontWeight: "600", color: TEXT }}>全日本学連方式</div>
+                      <div style={{ fontSize: "12px", color: MUTED, marginTop: "2px" }}>総合得点が同点の場合は同順位とし、次の順位を欠位とする（タイを解かない）。</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* フォールバック拡張（関東学連のみ） */}
+              {form.overall_tie_method === "kanto" && (
+                <div style={{ marginBottom: "20px", paddingLeft: "16px", borderLeft: `3px solid ${BORDER}` }}>
+                  <div style={{ fontSize: "13px", fontWeight: "700", color: TEXT, marginBottom: "10px" }}>フォールバック拡張</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                      <input
+                        type="radio"
+                        name="tie_fallback_extended"
+                        value="true"
+                        checked={form.tie_fallback_extended === true}
+                        onChange={() => updateField("tie_fallback_extended", true)}
+                        style={{ marginTop: "3px" }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: "600", color: TEXT }}>2025年以降の新規定</div>
+                        <div style={{ fontSize: "12px", color: MUTED, marginTop: "2px" }}>最終レース合計でもタイが残る場合、最後から1つ前のレースへ遡って比較を繰り返す。タイが完全に解けるまで続ける。</div>
+                      </div>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                      <input
+                        type="radio"
+                        name="tie_fallback_extended"
+                        value="false"
+                        checked={form.tie_fallback_extended === false}
+                        onChange={() => updateField("tie_fallback_extended", false)}
+                        style={{ marginTop: "3px" }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: "600", color: TEXT }}>2024年以前の旧規定</div>
+                        <div style={{ fontSize: "12px", color: MUTED, marginTop: "2px" }}>最終レースの合計点で比較して終了。それでもタイの場合は同順位とする。</div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* 除外得点の扱い（関東学連のみ） */}
+              {form.overall_tie_method === "kanto" && (
+                <div style={{ paddingLeft: "16px", borderLeft: `3px solid ${BORDER}` }}>
+                  <div style={{ fontSize: "13px", fontWeight: "700", color: TEXT, marginBottom: "10px" }}>タイ解消時の除外得点の扱い</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                      <input
+                        type="radio"
+                        name="tie_use_excluded_scores"
+                        value="true"
+                        checked={form.tie_use_excluded_scores === true}
+                        onChange={() => updateField("tie_use_excluded_scores", true)}
+                        style={{ marginTop: "3px" }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: "600", color: TEXT }}>除外得点も使用する（2025年関東学連準拠）</div>
+                        <div style={{ fontSize: "12px", color: MUTED, marginTop: "2px" }}>カットされたレースの得点も、タイを解消する際の比較対象として使用する。</div>
+                      </div>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                      <input
+                        type="radio"
+                        name="tie_use_excluded_scores"
+                        value="false"
+                        checked={form.tie_use_excluded_scores === false}
+                        onChange={() => updateField("tie_use_excluded_scores", false)}
+                        style={{ marginTop: "3px" }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: "600", color: TEXT }}>除外得点は使用しない</div>
+                        <div style={{ fontSize: "12px", color: MUTED, marginTop: "2px" }}>カットされたレースの得点はタイ解消時も使用しない。</div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

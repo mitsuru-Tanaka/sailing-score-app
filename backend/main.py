@@ -75,6 +75,9 @@ _MIGRATIONS = [
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS custom_result_codes TEXT",
     "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS deleted_at TEXT",
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS team_cut_method TEXT NOT NULL DEFAULT 'individual'",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS overall_tie_method TEXT NOT NULL DEFAULT 'kanto'",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS tie_fallback_extended BOOLEAN NOT NULL DEFAULT true",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS tie_use_excluded_scores BOOLEAN NOT NULL DEFAULT true",
 ]
 
 for _sql in _MIGRATIONS:

@@ -146,6 +146,9 @@ class RuleConfigUpdate(BaseModel):
     dne_rule: str = "STARTERS_PLUS_1"
     custom_result_codes: Optional[str] = None
     team_cut_method: str = "individual"
+    overall_tie_method: str = "kanto"
+    tie_fallback_extended: bool = True
+    tie_use_excluded_scores: bool = True
 
 
 class RuleConfigOut(BaseModel):
@@ -168,6 +171,9 @@ class RuleConfigOut(BaseModel):
     dne_rule: str = "STARTERS_PLUS_1"
     custom_result_codes: Optional[str] = None
     team_cut_method: str = "individual"
+    overall_tie_method: str = "kanto"
+    tie_fallback_extended: bool = True
+    tie_use_excluded_scores: bool = True
 
     class Config:
         from_attributes = True
