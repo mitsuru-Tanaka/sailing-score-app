@@ -74,6 +74,7 @@ _MIGRATIONS = [
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS dne_rule TEXT NOT NULL DEFAULT 'STARTERS_PLUS_1'",
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS custom_result_codes TEXT",
     "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS deleted_at TEXT",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS team_cut_method TEXT NOT NULL DEFAULT 'individual'",
 ]
 
 for _sql in _MIGRATIONS:
@@ -1122,6 +1123,8 @@ def calculate_class_section_v3(
     ):
         discard_count = rule_config.discard_count
 
+    team_cut_method = (rule_config.team_cut_method if rule_config and rule_config.team_cut_method else "individual")
+
     # チームごとに艇をグループ化
     team_boats: dict[str, list] = {}
     for boat in boats:
@@ -1134,29 +1137,14 @@ def calculate_class_section_v3(
     for tname in sorted(team_boats.keys()):
         boats_in_team = team_boats[tname]
 
-        # 艇別明細
+        # 艇別: 全レースの得点を収集（カット前）
         boat_rows = []
         for boat in boats_in_team:
             race_points = []
-            raw_total = 0
             for race in races:
                 r = result_map.get((race.id, boat.id))
                 pts = r.points if (r and r.points is not None) else None
                 race_points.append(pts)
-                if pts is not None:
-                    raw_total += pts
-
-            # カット対象レースを決定（得点が大きい順に discard_count 個）
-            discarded_race_indices: list[int] = []
-            if discard_count > 0:
-                valid = [(i, p) for i, p in enumerate(race_points) if p is not None]
-                worst = sorted(valid, key=lambda x: -x[1])[:discard_count]
-                discarded_race_indices = [i for i, _ in worst]
-
-            discarded_sum = sum(
-                race_points[i] for i in discarded_race_indices if race_points[i] is not None
-            )
-            boat_total = raw_total - discarded_sum
 
             boat_rows.append({
                 "boat_id": boat.id,
@@ -1164,30 +1152,74 @@ def calculate_class_section_v3(
                 "helmsman_name": boat.helmsman_name,
                 "crew_name": boat.crew_name,
                 "race_points": race_points,
-                "boat_total": boat_total,
-                "discarded_race_indices": discarded_race_indices,
+                "boat_total": 0,
+                "discarded_race_indices": [],
             })
 
-        # レースごとのチーム合計（上位 team_size 艇の合計）
+        # ---- カット処理 ----
+        team_discarded_race_indices: list[int] = []
+
+        if team_cut_method == "team" and discard_count > 0:
+            # 方式A: チーム単位カット
+            # レースごとの上位 team_size 艇合計を計算し、最大の discard_count レースをカット
+            race_team_totals = []
+            for race_idx in range(len(races)):
+                per_race = sorted(
+                    row["race_points"][race_idx]
+                    for row in boat_rows
+                    if row["race_points"][race_idx] is not None
+                )
+                race_team_totals.append(
+                    sum(per_race[:team_size]) if per_race else None
+                )
+            valid = [(i, t) for i, t in enumerate(race_team_totals) if t is not None]
+            worst = sorted(valid, key=lambda x: -x[1])[:discard_count]
+            team_discarded_race_indices = [i for i, _ in worst]
+
+            # 全艇に同じカットレースを適用
+            for row in boat_rows:
+                row["discarded_race_indices"] = team_discarded_race_indices
+                raw = sum(p for p in row["race_points"] if p is not None)
+                disc = sum(row["race_points"][i] for i in team_discarded_race_indices if row["race_points"][i] is not None)
+                row["boat_total"] = raw - disc
+
+        else:
+            # 方式B: 個人単位カット（デフォルト）
+            for row in boat_rows:
+                raw_total = sum(p for p in row["race_points"] if p is not None)
+                discarded_race_indices: list[int] = []
+                if discard_count > 0:
+                    valid_pts = [(i, p) for i, p in enumerate(row["race_points"]) if p is not None]
+                    worst_pts = sorted(valid_pts, key=lambda x: -x[1])[:discard_count]
+                    discarded_race_indices = [i for i, _ in worst_pts]
+                disc_sum = sum(row["race_points"][i] for i in discarded_race_indices if row["race_points"][i] is not None)
+                row["discarded_race_indices"] = discarded_race_indices
+                row["boat_total"] = raw_total - disc_sum
+
+        # レースごとのチーム合計（カット済み艇得点ベース、カットレースは None）
         team_race_totals = []
         team_total = 0
         for race_idx in range(len(races)):
-            per_race = sorted(
-                row["race_points"][race_idx]
-                for row in boat_rows
-                if row["race_points"][race_idx] is not None
-            )
-            if len(per_race) == 0:
+            if race_idx in team_discarded_race_indices:
                 team_race_totals.append(None)
             else:
-                adopted = sum(per_race[:team_size])
-                team_race_totals.append(adopted)
-                team_total += adopted
+                per_race = sorted(
+                    row["race_points"][race_idx]
+                    for row in boat_rows
+                    if row["race_points"][race_idx] is not None
+                )
+                if len(per_race) == 0:
+                    team_race_totals.append(None)
+                else:
+                    adopted = sum(per_race[:team_size])
+                    team_race_totals.append(adopted)
+                    team_total += adopted
 
         is_incomplete = any(
             0 < sum(1 for row in boat_rows if row["race_points"][i] is not None) < team_size
             for i in range(len(races))
-            if any(row["race_points"][i] is not None for row in boat_rows)
+            if i not in team_discarded_race_indices
+            and any(row["race_points"][i] is not None for row in boat_rows)
         )
         has_any = any(t is not None for t in team_race_totals)
         team_blocks.append({
@@ -1195,6 +1227,7 @@ def calculate_class_section_v3(
             "boats": boat_rows,
             "team_race_totals": team_race_totals,
             "team_total": team_total,
+            "team_discarded_race_indices": team_discarded_race_indices,
             "rank": 0,
             "_sort_group": 0 if (has_any and not is_incomplete) else (1 if has_any else 2),
         })
@@ -1210,6 +1243,7 @@ def calculate_class_section_v3(
         "section_title": section_title,
         "race_count": len(races),
         "teams": team_blocks,
+        "cut_method": team_cut_method,
     }
 
 

@@ -59,6 +59,7 @@ type TeamClassBlock = {
   team_race_totals: number[];
   team_total: number;
   boats: BoatDetailRow[];
+  team_discarded_race_indices: number[];
 };
 
 type ClassSection = {
@@ -66,6 +67,7 @@ type ClassSection = {
   section_title: string;
   race_count: number;
   teams: TeamClassBlock[];
+  cut_method: string;
 };
 
 type ClassScoreItem = {
@@ -123,6 +125,10 @@ const ROW_SEP      = "1px solid #eee";
 
 function ClassSectionView({ section }: { section: ClassSection }) {
   const raceCount = section.race_count;
+  const isTeamCut = section.cut_method === "team";
+  const teamDiscardedIndices: Set<number> = isTeamCut
+    ? new Set(section.teams[0]?.team_discarded_race_indices ?? [])
+    : new Set();
 
   return (
     <section
@@ -164,19 +170,24 @@ function ClassSectionView({ section }: { section: ClassSection }) {
                     {label}
                   </th>
                 ))}
-                {Array.from({ length: raceCount }).map((_, i) => (
-                  <th
-                    key={i}
-                    style={{
-                      padding: "10px",
-                      textAlign: "center",
-                      whiteSpace: "nowrap",
-                      border: HEADER_BORDER,
-                    }}
-                  >
-                    R{i + 1}
-                  </th>
-                ))}
+                {Array.from({ length: raceCount }).map((_, i) => {
+                  const isColDiscarded = isTeamCut && teamDiscardedIndices.has(i);
+                  return (
+                    <th
+                      key={i}
+                      style={{
+                        padding: "10px",
+                        textAlign: "center",
+                        whiteSpace: "nowrap",
+                        border: HEADER_BORDER,
+                        backgroundColor: isColDiscarded ? "#b0b8c4" : undefined,
+                        color: isColDiscarded ? "#fff" : undefined,
+                      }}
+                    >
+                      R{i + 1}
+                    </th>
+                  );
+                })}
                 <th style={{ padding: "10px", textAlign: "right", whiteSpace: "nowrap", border: HEADER_BORDER }}>
                   艇合計
                 </th>
@@ -242,7 +253,9 @@ function ClassSectionView({ section }: { section: ClassSection }) {
                         {formatCrew(boat.helmsman_name, boat.crew_name)}
                       </td>
                       {boat.race_points.map((pt, rIdx) => {
-                        const isDiscarded = boat.discarded_race_indices.includes(rIdx);
+                        const isColDiscarded = isTeamCut && teamDiscardedIndices.has(rIdx);
+                        const isIndivDiscarded = !isTeamCut && boat.discarded_race_indices.includes(rIdx);
+                        const isDiscarded = isColDiscarded || isIndivDiscarded;
                         return (
                           <td
                             key={rIdx}
@@ -251,11 +264,11 @@ function ClassSectionView({ section }: { section: ClassSection }) {
                               textAlign: "center",
                               borderBottom: rowBorderBottom,
                               whiteSpace: "nowrap",
+                              backgroundColor: isColDiscarded ? "#e8eaed" : undefined,
                               color: isDiscarded ? "#aaa" : "inherit",
-                              textDecoration: isDiscarded ? "line-through" : "none",
                             }}
                           >
-                            {pt ?? "-"}
+                            {pt == null ? "-" : isDiscarded ? `(${pt})` : pt}
                           </td>
                         );
                       })}

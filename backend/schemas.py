@@ -145,6 +145,7 @@ class RuleConfigUpdate(BaseModel):
     nsc_rule: str = "STARTERS_PLUS_1"
     dne_rule: str = "STARTERS_PLUS_1"
     custom_result_codes: Optional[str] = None
+    team_cut_method: str = "individual"
 
 
 class RuleConfigOut(BaseModel):
@@ -166,6 +167,7 @@ class RuleConfigOut(BaseModel):
     nsc_rule: str = "STARTERS_PLUS_1"
     dne_rule: str = "STARTERS_PLUS_1"
     custom_result_codes: Optional[str] = None
+    team_cut_method: str = "individual"
 
     class Config:
         from_attributes = True
@@ -261,12 +263,14 @@ class TeamClassBlock(BaseModel):
     team_race_totals: list[int | None]
     team_total: int
     boats: list[BoatDetailRow]
+    team_discarded_race_indices: list[int] = []
 
 class ClassSection(BaseModel):
     class_name: str
     section_title: str
     race_count: int
     teams: list[TeamClassBlock]
+    cut_method: str = "individual"
 
 class ClassScoreItem(BaseModel):
     class_name: str

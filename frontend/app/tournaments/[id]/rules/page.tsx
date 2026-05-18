@@ -25,6 +25,7 @@ type RuleConfig = {
   nsc_rule: string;
   dne_rule: string;
   custom_result_codes?: string | null;
+  team_cut_method?: string;
 };
 
 const ruleOptions = ["STARTERS_PLUS_1", "ENTRIES_PLUS_1"];
@@ -62,6 +63,7 @@ export default function RulesPage() {
   const tournamentId = params.id as string;
 
   const [tournamentName, setTournamentName] = useState("");
+  const [eventTemplate, setEventTemplate] = useState("");
   const [form, setForm] = useState({
     scheduled_races: 1,
     minimum_races_for_series: 1,
@@ -78,6 +80,7 @@ export default function RulesPage() {
     bfd_rule: "ENTRIES_PLUS_1",
     nsc_rule: "STARTERS_PLUS_1",
     dne_rule: "STARTERS_PLUS_1",
+    team_cut_method: "individual",
   });
   const [customCodes, setCustomCodes] = useState<string[]>([]);
   const [newCodeInput, setNewCodeInput] = useState("");
@@ -104,6 +107,7 @@ export default function RulesPage() {
       if (tRes.ok) {
         const t = await tRes.json();
         setTournamentName(t.name);
+        setEventTemplate(t.event_template ?? "");
       }
       if (!rRes.ok) { setError("ルール取得に失敗しました"); return; }
       const data: RuleConfig = await rRes.json();
@@ -123,6 +127,7 @@ export default function RulesPage() {
         bfd_rule: data.bfd_rule,
         nsc_rule: data.nsc_rule ?? "STARTERS_PLUS_1",
         dne_rule: data.dne_rule ?? "STARTERS_PLUS_1",
+        team_cut_method: data.team_cut_method ?? "individual",
       });
       setCustomCodes(
         data.custom_result_codes
@@ -150,6 +155,7 @@ export default function RulesPage() {
           ufd_rule: form.ufd_rule, bfd_rule: form.bfd_rule,
           nsc_rule: form.nsc_rule, dne_rule: form.dne_rule,
           custom_result_codes: customCodes.length > 0 ? customCodes.join(",") : null,
+          team_cut_method: form.team_cut_method,
         }),
       });
       if (!res.ok) { setError("ルール保存に失敗しました"); return; }
@@ -339,6 +345,48 @@ export default function RulesPage() {
               ))}
             </div>
           </div>
+
+          {/* カット方式（団体戦のみ） */}
+          {(eventTemplate === "TEAM_3_BOATS" || eventTemplate === "TEAM_4_BOATS") && (
+            <div style={{ ...CARD, marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "14px", fontWeight: "700", color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 0, marginBottom: "8px" }}>
+                カット方式（団体戦）
+              </h2>
+              <p style={{ fontSize: "12px", color: MUTED, marginBottom: "16px", marginTop: 0 }}>
+                カットするレースの選び方を指定します。
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="team_cut_method"
+                    value="individual"
+                    checked={form.team_cut_method === "individual"}
+                    onChange={() => updateField("team_cut_method", "individual")}
+                    style={{ marginTop: "3px" }}
+                  />
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: "600", color: TEXT }}>方式B（個人単位カット）</div>
+                    <div style={{ fontSize: "12px", color: MUTED, marginTop: "2px" }}>各艇が独立してワーストレースをカット。艇ごとに異なるレースがカットされる場合あり。</div>
+                  </div>
+                </label>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="team_cut_method"
+                    value="team"
+                    checked={form.team_cut_method === "team"}
+                    onChange={() => updateField("team_cut_method", "team")}
+                    style={{ marginTop: "3px" }}
+                  />
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: "600", color: TEXT }}>方式A（大学単位カット）</div>
+                    <div style={{ fontSize: "12px", color: MUTED, marginTop: "2px" }}>チーム合計点がワーストのレースを全艇共通でカット。チーム全体で同じレースが除外される。</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* カスタムコード */}
           <div style={{ ...CARD, marginBottom: "24px" }}>

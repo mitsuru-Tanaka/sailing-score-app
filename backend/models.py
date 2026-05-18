@@ -144,6 +144,7 @@ class RuleConfig(Base):
     nsc_rule = Column(String, nullable=False, default="STARTERS_PLUS_1")
     dne_rule = Column(String, nullable=False, default="STARTERS_PLUS_1")
     custom_result_codes = Column(String, nullable=True)
+    team_cut_method = Column(String, nullable=False, default="individual")
 
 
 class Race(Base):
