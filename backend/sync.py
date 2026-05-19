@@ -7,6 +7,7 @@
 """
 import sys
 import os
+from urllib.parse import urlparse, unquote
 
 try:
     import psycopg2
@@ -14,6 +15,68 @@ try:
 except ImportError:
     print("ERROR: psycopg2 が見つかりません。pip install psycopg2-binary でインストールしてください。")
     sys.exit(1)
+
+
+def _build_kwargs(host: str, port: int, dbname: str, user: str, password: str) -> dict:
+    is_local = host in ("localhost", "127.0.0.1")
+    kwargs: dict = dict(
+        host=host, port=port, dbname=dbname,
+        user=user, password=password, connect_timeout=15,
+    )
+    if not is_local:
+        kwargs["sslmode"] = "require"
+        kwargs["gssencmode"] = "disable"
+    return kwargs
+
+
+def connect_db(url: str) -> psycopg2.extensions.connection:
+    """
+    URL を明示的なパラメータに分解して接続する。
+    Supabase Pooler が失敗した場合はダイレクト接続に自動フォールバック。
+
+    対応 URL パターン:
+      プーラー:  postgresql://postgres.PROJECT:PW@aws-*.pooler.supabase.com:6543/postgres
+      ダイレクト: postgresql://postgres:PW@db.PROJECT.supabase.co:5432/postgres
+    """
+    p = urlparse(url)
+    host     = p.hostname or "localhost"
+    port     = p.port or 5432
+    dbname   = (p.path or "/postgres").lstrip("/") or "postgres"
+    user     = unquote(p.username or "postgres")
+    password = unquote(p.password or "")
+
+    # ── プライマリ接続 ────────────────────────────────
+    kwargs = _build_kwargs(host, port, dbname, user, password)
+    try:
+        conn = psycopg2.connect(**kwargs)
+        return conn
+    except psycopg2.OperationalError as e:
+        err_str = str(e)
+        # プーラー URL でテナントエラーの場合のみダイレクト接続を試みる
+        if "pooler.supabase.com" not in host or "not found" not in err_str:
+            raise
+
+    # ── フォールバック: ダイレクト接続 ───────────────
+    # postgres.PROJECT → PROJECT を抽出
+    project_ref = user.split(".", 1)[1] if "." in user else user
+    direct_host = f"db.{project_ref}.supabase.co"
+    print(f"  プーラー接続失敗。ダイレクト接続を試みます: {direct_host}:5432")
+
+    fb_kwargs = _build_kwargs(direct_host, 5432, dbname, "postgres", password)
+    try:
+        conn = psycopg2.connect(**fb_kwargs)
+        print(f"  ダイレクト接続成功。")
+        return conn
+    except psycopg2.OperationalError as e2:
+        raise psycopg2.OperationalError(
+            f"プーラー接続失敗: {err_str}\n"
+            f"ダイレクト接続も失敗: {e2}\n\n"
+            f"対処法:\n"
+            f"  1. Supabase ダッシュボードでプロジェクトが起動しているか確認\n"
+            f"  2. .env.sync の SUPABASE_DB_URL をダイレクト接続URLに変更:\n"
+            f"     postgresql://postgres:PASSWORD@db.{project_ref}.supabase.co:5432/postgres\n"
+            f"     (Settings → Database → Connection string → URI)"
+        ) from e2
 
 TABLES = [
     "tournaments",
@@ -96,12 +159,23 @@ def main():
         print("       backend/.env.sync に SUPABASE_DB_URL=... を設定してください。")
         sys.exit(1)
 
-    print(f"接続中: ローカル ({local_url.split('@')[-1] if '@' in local_url else local_url})")
-    local_conn = psycopg2.connect(local_url)
+    local_host = urlparse(local_url).hostname or "localhost"
+    cloud_host = urlparse(cloud_url).hostname or "***"
+    print(f"接続中: ローカル ({local_host})")
+    try:
+        local_conn = connect_db(local_url)
+    except Exception as e:
+        print(f"ERROR: ローカルDB接続失敗: {e}")
+        sys.exit(1)
     local_conn.autocommit = False
 
-    print(f"接続中: Supabase ({cloud_url.split('@')[-1] if '@' in cloud_url else '***'})")
-    cloud_conn = psycopg2.connect(cloud_url)
+    print(f"接続中: Supabase ({cloud_host})")
+    try:
+        cloud_conn = connect_db(cloud_url)
+    except Exception as e:
+        print(f"ERROR: Supabase接続失敗: {e}")
+        local_conn.close()
+        sys.exit(1)
     cloud_conn.autocommit = False
 
     if direction == "to_cloud":
