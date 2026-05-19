@@ -1593,6 +1593,38 @@ def create_boat(
     return new_boat
 
 
+@app.put("/boats/{boat_id}", response_model=BoatOut)
+def update_boat(
+    boat_id: int,
+    boat: BoatCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    existing = db.query(Boat).filter(Boat.id == boat_id).first()
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Boat not found")
+    check_tournament_access(existing.tournament_id, current_user, db)
+    for field, value in boat.model_dump().items():
+        setattr(existing, field, value)
+    db.commit()
+    db.refresh(existing)
+    return existing
+
+
+@app.delete("/boats/{boat_id}", status_code=204)
+def delete_boat(
+    boat_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    existing = db.query(Boat).filter(Boat.id == boat_id).first()
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Boat not found")
+    check_tournament_access(existing.tournament_id, current_user, db)
+    db.delete(existing)
+    db.commit()
+
+
 @app.get("/tournaments/{tournament_id}/rules", response_model=RuleConfigOut)
 def get_rule_config(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
