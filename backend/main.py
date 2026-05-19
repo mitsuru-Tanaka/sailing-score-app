@@ -78,6 +78,14 @@ _MIGRATIONS = [
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS overall_tie_method TEXT NOT NULL DEFAULT 'kanto'",
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS tie_fallback_extended BOOLEAN NOT NULL DEFAULT true",
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS tie_use_excluded_scores BOOLEAN NOT NULL DEFAULT true",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS dne_score_method TEXT NOT NULL DEFAULT 'plus_one'",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS sp_method TEXT NOT NULL DEFAULT 'dsq'",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS use_appendix_t BOOLEAN NOT NULL DEFAULT true",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS same_school_rule BOOLEAN NOT NULL DEFAULT false",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS min_races_to_complete INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS fleet_split BOOLEAN NOT NULL DEFAULT false",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS fleet_split_method TEXT NOT NULL DEFAULT 'own'",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS preset_template TEXT NOT NULL DEFAULT 'custom'",
 ]
 
 for _sql in _MIGRATIONS:
@@ -180,19 +188,34 @@ def calculate_points_for_result(
         "UFD": rule_config.ufd_rule,   # Uフラッグ失格
         "BFD": rule_config.bfd_rule,   # 黒旗失格
         "NSC": rule_config.dsq_rule,   # コースを航走しなかった（DSQ同等）
-        "DNE": rule_config.dsq_rule,   # 除外不能な失格（DSQ同等）
     }
     if code in rule_map:
         return apply_scoring_rule(rule_map[code], entries_count, starters_count)
+
+    # DNE: 除外不能な失格 — dne_score_method に応じてエントリー艇数 +1 または +5
+    if code == "DNE":
+        if getattr(rule_config, "dne_score_method", "plus_one") == "plus_five":
+            return entries_count + 5
+        return entries_count + 1
 
     # 着順ベースのペナルティコード（fp 必須）
     if fp is None:
         raise HTTPException(status_code=400, detail=f"{code} requires finish_position")
 
-    if code == "STP":                        # 標準ペナルティ +3点
-        return fp + 3
-    if code in ("SCP", "ARB", "PRP"):        # 各種ペナルティ ×1.3 切り上げ
+    if code == "STP":
+        sp_method = getattr(rule_config, "sp_method", "dsq")
+        if sp_method == "add_one":
+            return fp + 1
+        return apply_scoring_rule(rule_config.dsq_rule, entries_count, starters_count)
+
+    if code in ("SCP", "ARB"):               # 各種ペナルティ ×1.3 切り上げ
         return math.ceil(fp * 1.3)
+
+    if code == "PRP":                        # 付則T — 無効時はエラー
+        if not getattr(rule_config, "use_appendix_t", True):
+            raise HTTPException(status_code=400, detail="PRP コードは無効です（付則T が適用されていません）")
+        return math.ceil(fp * 1.3)
+
     if code == "ZFP":                        # 規則30.2 ×1.2 切り上げ
         return math.ceil(fp * 1.2)
 

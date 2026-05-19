@@ -149,6 +149,14 @@ class RuleConfigUpdate(BaseModel):
     overall_tie_method: str = "kanto"
     tie_fallback_extended: bool = True
     tie_use_excluded_scores: bool = True
+    dne_score_method: str = "plus_one"
+    sp_method: str = "dsq"
+    use_appendix_t: bool = True
+    same_school_rule: bool = False
+    min_races_to_complete: int = 1
+    fleet_split: bool = False
+    fleet_split_method: str = "own"
+    preset_template: str = "custom"
 
 
 class RuleConfigOut(BaseModel):
@@ -174,6 +182,14 @@ class RuleConfigOut(BaseModel):
     overall_tie_method: str = "kanto"
     tie_fallback_extended: bool = True
     tie_use_excluded_scores: bool = True
+    dne_score_method: str = "plus_one"
+    sp_method: str = "dsq"
+    use_appendix_t: bool = True
+    same_school_rule: bool = False
+    min_races_to_complete: int = 1
+    fleet_split: bool = False
+    fleet_split_method: str = "own"
+    preset_template: str = "custom"
 
     class Config:
         from_attributes = True

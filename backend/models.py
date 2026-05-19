@@ -148,6 +148,14 @@ class RuleConfig(Base):
     overall_tie_method = Column(String, nullable=False, default="kanto")
     tie_fallback_extended = Column(Boolean, nullable=False, default=True)
     tie_use_excluded_scores = Column(Boolean, nullable=False, default=True)
+    dne_score_method = Column(String, nullable=False, default="plus_one")
+    sp_method = Column(String, nullable=False, default="dsq")
+    use_appendix_t = Column(Boolean, nullable=False, default=True)
+    same_school_rule = Column(Boolean, nullable=False, default=False)
+    min_races_to_complete = Column(Integer, nullable=False, default=1)
+    fleet_split = Column(Boolean, nullable=False, default=False)
+    fleet_split_method = Column(String, nullable=False, default="own")
+    preset_template = Column(String, nullable=False, default="custom")
 
 
 class Race(Base):
