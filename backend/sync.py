@@ -17,55 +17,69 @@ except ImportError:
     sys.exit(1)
 
 
-def _build_kwargs(host: str, port: int, dbname: str, user: str, password: str) -> dict:
-    is_local = host in ("localhost", "127.0.0.1")
-    kwargs: dict = dict(
-        host=host, port=port, dbname=dbname,
-        user=user, password=password, connect_timeout=15,
-    )
-    if not is_local:
-        kwargs["sslmode"] = "require"
-        kwargs["gssencmode"] = "disable"
-    return kwargs
-
-
 def connect_db(url: str) -> psycopg2.extensions.connection:
     """
     URL を明示的なパラメータに分解して接続する。
-    Supabase Pooler が失敗した場合はダイレクト接続に自動フォールバック。
 
     対応 URL パターン:
-      プーラー:  postgresql://postgres.PROJECT:PW@aws-*.pooler.supabase.com:6543/postgres
-      ダイレクト: postgresql://postgres:PW@db.PROJECT.supabase.co:5432/postgres
+      Unix socket:  postgresql:///dbname  (ローカル・macOS Homebrew)
+      ローカルTCP:  postgresql://localhost/dbname
+      Supabase Pooler: postgresql://postgres.PROJECT:PW@aws-*.pooler.supabase.com:6543/postgres
+      Supabase Direct: postgresql://postgres:PW@db.PROJECT.supabase.co:5432/postgres
     """
     p = urlparse(url)
-    host     = p.hostname or "localhost"
-    port     = p.port or 5432
+    host     = p.hostname  # None = Unix socket
+    port     = p.port
     dbname   = (p.path or "/postgres").lstrip("/") or "postgres"
-    user     = unquote(p.username or "postgres")
-    password = unquote(p.password or "")
+    user     = unquote(p.username) if p.username else None
+    password = unquote(p.password) if p.password else None
+
+    is_local = (host is None) or (host in ("localhost", "127.0.0.1"))
+
+    # Unix socket（postgresql:///dbname）はホスト・ポート不要
+    if host is None:
+        kwargs: dict = dict(dbname=dbname, connect_timeout=15)
+        if user:
+            kwargs["user"] = user
+        return psycopg2.connect(**kwargs)
+
+    kwargs = dict(
+        host=host, port=port or 5432, dbname=dbname, connect_timeout=15,
+    )
+    if user:
+        kwargs["user"] = user
+    if password:
+        kwargs["password"] = password
+
+    if not is_local:
+        kwargs["sslmode"] = "require"
+        kwargs["gssencmode"] = "disable"
+    else:
+        # ローカルTCP でも GSSAPI を無効にして IPv6 問題を回避
+        kwargs["gssencmode"] = "disable"
 
     # ── プライマリ接続 ────────────────────────────────
-    kwargs = _build_kwargs(host, port, dbname, user, password)
     try:
-        conn = psycopg2.connect(**kwargs)
-        return conn
+        return psycopg2.connect(**kwargs)
     except psycopg2.OperationalError as e:
         err_str = str(e)
         # プーラー URL でテナントエラーの場合のみダイレクト接続を試みる
-        if "pooler.supabase.com" not in host or "not found" not in err_str:
+        if "pooler.supabase.com" not in (host or "") or "not found" not in err_str:
             raise
 
     # ── フォールバック: ダイレクト接続 ───────────────
-    # postgres.PROJECT → PROJECT を抽出
-    project_ref = user.split(".", 1)[1] if "." in user else user
+    project_ref = (user or "").split(".", 1)[1] if "." in (user or "") else (user or "")
     direct_host = f"db.{project_ref}.supabase.co"
     print(f"  プーラー接続失敗。ダイレクト接続を試みます: {direct_host}:5432")
 
-    fb_kwargs = _build_kwargs(direct_host, 5432, dbname, "postgres", password)
+    fb_kwargs = dict(
+        host=direct_host, port=5432, dbname=dbname,
+        user="postgres", password=password or "",
+        sslmode="require", gssencmode="disable", connect_timeout=15,
+    )
     try:
         conn = psycopg2.connect(**fb_kwargs)
-        print(f"  ダイレクト接続成功。")
+        print("  ダイレクト接続成功。")
         return conn
     except psycopg2.OperationalError as e2:
         raise psycopg2.OperationalError(
@@ -74,8 +88,7 @@ def connect_db(url: str) -> psycopg2.extensions.connection:
             f"対処法:\n"
             f"  1. Supabase ダッシュボードでプロジェクトが起動しているか確認\n"
             f"  2. .env.sync の SUPABASE_DB_URL をダイレクト接続URLに変更:\n"
-            f"     postgresql://postgres:PASSWORD@db.{project_ref}.supabase.co:5432/postgres\n"
-            f"     (Settings → Database → Connection string → URI)"
+            f"     postgresql://postgres:PASSWORD@db.{project_ref}.supabase.co:5432/postgres"
         ) from e2
 
 TABLES = [
