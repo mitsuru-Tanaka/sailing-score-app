@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase";
 
 const NAV  = "#1F4E78";
 const WHITE = "#ffffff";
+const IS_LOCAL = process.env.NEXT_PUBLIC_MODE === "local";
 
 export default function TopBar() {
   const router = useRouter();
@@ -52,21 +53,50 @@ export default function TopBar() {
         zIndex: 100,
       }}
     >
-      <Link
-        href="/"
-        style={{
-          color: WHITE,
-          textDecoration: "none",
-          fontWeight: "700",
-          fontSize: "17px",
-          letterSpacing: "0.02em",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-        }}
-      >
-        ⛵ セーリング得点管理
-      </Link>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <Link
+          href="/"
+          style={{
+            color: WHITE,
+            textDecoration: "none",
+            fontWeight: "700",
+            fontSize: "17px",
+            letterSpacing: "0.02em",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          ⛵ セーリング得点管理
+        </Link>
+        {IS_LOCAL ? (
+          <span style={{
+            backgroundColor: "#ea580c",
+            color: WHITE,
+            fontSize: "11px",
+            fontWeight: "700",
+            padding: "2px 8px",
+            borderRadius: "4px",
+            letterSpacing: "0.04em",
+            whiteSpace: "nowrap",
+          }}>
+            ローカルモード
+          </span>
+        ) : (
+          <span style={{
+            backgroundColor: "rgba(255,255,255,0.12)",
+            color: "rgba(255,255,255,0.65)",
+            fontSize: "11px",
+            fontWeight: "600",
+            padding: "2px 8px",
+            borderRadius: "4px",
+            letterSpacing: "0.04em",
+            whiteSpace: "nowrap",
+          }}>
+            クラウドモード
+          </span>
+        )}
+      </div>
 
       {email && (
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>

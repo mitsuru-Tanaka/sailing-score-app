@@ -5,17 +5,24 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:////tmp/sailing.db")
+_DEFAULT_LOCAL_DB = "postgresql://localhost/sailing_score_db"
+DATABASE_URL = os.environ.get("DATABASE_URL", _DEFAULT_LOCAL_DB)
 print(f"[db] scheme: {DATABASE_URL.split('://')[0]}", flush=True)
 
 # Render の PostgreSQL は "postgres://" で始まるが SQLAlchemy は "postgresql://" が必要
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+def _is_local(url: str) -> bool:
+    return "localhost" in url or "127.0.0.1" in url
+
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+elif _is_local(DATABASE_URL):
+    # ローカル PostgreSQL は SSL 不要
+    connect_args = {}
 else:
-    # Supabase / PostgreSQL は SSL 必須。URL に sslmode がなければ追加する
+    # Supabase / Render PostgreSQL は SSL 必須
     if "sslmode" not in DATABASE_URL:
         sep = "&" if "?" in DATABASE_URL else "?"
         DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
