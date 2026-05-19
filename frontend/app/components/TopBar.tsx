@@ -12,17 +12,20 @@ const IS_LOCAL = process.env.NEXT_PUBLIC_MODE === "local";
 export default function TopBar() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       setEmail(user?.email ?? null);
+      setDisplayName((user?.user_metadata?.display_name as string | undefined) ?? null);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_, session) => {
         setEmail(session?.user?.email ?? null);
+        setDisplayName((session?.user?.user_metadata?.display_name as string | undefined) ?? null);
       }
     );
 
@@ -111,7 +114,8 @@ export default function TopBar() {
           >
             管理
           </Link>
-          <span
+          <Link
+            href="/account"
             style={{
               color: "rgba(255,255,255,0.85)",
               fontSize: "13px",
@@ -119,10 +123,11 @@ export default function TopBar() {
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
+              textDecoration: "none",
             }}
           >
-            {email}
-          </span>
+            {displayName || email}
+          </Link>
           <button
             onClick={handleLogout}
             style={{
