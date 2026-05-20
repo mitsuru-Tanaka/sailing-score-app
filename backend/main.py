@@ -532,9 +532,12 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
         if border:    cell.border    = border
 
     def apply_outer_border(ws, r1, r2, c1, c2):
+        from openpyxl.cell.cell import MergedCell
         for row in range(r1, r2 + 1):
             for col in range(c1, c2 + 1):
                 cell = ws.cell(row=row, column=col)
+                if isinstance(cell, MergedCell):
+                    continue  # 結合セル内部はスキップ（top-left で管理）
                 b = cell.border
                 cell.border = Border(
                     top=med_side    if row == r1 else b.top,
@@ -752,22 +755,45 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
                 return (group, total, tname)
 
             sorted_teams = sorted(team_boats_map.keys(), key=team_sort_key)
+            n_total_teams = len(sorted_teams)
             for rank, tname in enumerate(sorted_teams, 1):
                 t_total = team_net(tname)
                 team_boat_list = team_boats_map[tname]
+                team_start_row = current_row
+
                 for i, boat in enumerate(team_boat_list):
                     write_boat_row(
                         current_row,
-                        rank if i == 0 else "",
-                        tname,
+                        "",   # 順位: 結合セルで後設定
+                        "",   # 大学名: 結合セルで後設定
                         boat,
                         boat_net(boat.id),
-                        t_total if i == 0 else "",
+                        "",   # 大学合計: 結合セルで後設定
                         i == 0,
                         boat_idx_in_team=i,
                         team_boat_count=len(team_boat_list),
                     )
                     current_row += 1
+
+                team_end_row = current_row - 1
+                n_boats_in_team = len(team_boat_list)
+                is_last_team = (rank == n_total_teams)
+                # 大学合計列 = total_cols（最終列）
+                for col_idx, val in [(1, rank), (3, tname), (total_cols, t_total)]:
+                    if n_boats_in_team > 1:
+                        ws.merge_cells(
+                            start_row=team_start_row, start_column=col_idx,
+                            end_row=team_end_row,     end_column=col_idx,
+                        )
+                    cell = ws.cell(row=team_start_row, column=col_idx, value=val)
+                    cell.font      = bold9
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    cell.border    = Border(
+                        top=med_side,
+                        bottom=med_side if is_last_team else thin_side,
+                        left=med_side   if col_idx == 1          else thin_side,
+                        right=med_side  if col_idx == total_cols else thin_side,
+                    )
 
         # ── 外枠太線: メインデータ表 ──────────────────────────────────────────
         apply_outer_border(ws, H1, current_row - 1, 1, total_cols)
