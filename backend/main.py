@@ -1586,7 +1586,19 @@ def create_boat(
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
 
-    new_boat = Boat(tournament_id=tournament_id, **boat.model_dump())
+    sail = (boat.sail_number or "").strip()
+    if sail:
+        dup = db.query(Boat).filter(Boat.tournament_id == tournament_id, Boat.sail_number == sail).first()
+        if dup:
+            raise HTTPException(status_code=409, detail=f"セールNo. '{sail}' は既に登録されています")
+    if boat.entry_number is not None:
+        dup = db.query(Boat).filter(Boat.tournament_id == tournament_id, Boat.entry_number == boat.entry_number).first()
+        if dup:
+            raise HTTPException(status_code=409, detail=f"Entry No. {boat.entry_number} は既に登録されています")
+
+    data = boat.model_dump()
+    data["sail_number"] = sail  # None → ""
+    new_boat = Boat(tournament_id=tournament_id, **data)
     db.add(new_boat)
     db.commit()
     db.refresh(new_boat)
@@ -1604,7 +1616,28 @@ def update_boat(
     if existing is None:
         raise HTTPException(status_code=404, detail="Boat not found")
     check_tournament_access(existing.tournament_id, current_user, db)
-    for field, value in boat.model_dump().items():
+
+    sail = (boat.sail_number or "").strip()
+    if sail:
+        dup = db.query(Boat).filter(
+            Boat.tournament_id == existing.tournament_id,
+            Boat.sail_number == sail,
+            Boat.id != boat_id,
+        ).first()
+        if dup:
+            raise HTTPException(status_code=409, detail=f"セールNo. '{sail}' は既に登録されています")
+    if boat.entry_number is not None:
+        dup = db.query(Boat).filter(
+            Boat.tournament_id == existing.tournament_id,
+            Boat.entry_number == boat.entry_number,
+            Boat.id != boat_id,
+        ).first()
+        if dup:
+            raise HTTPException(status_code=409, detail=f"Entry No. {boat.entry_number} は既に登録されています")
+
+    data = boat.model_dump()
+    data["sail_number"] = sail
+    for field, value in data.items():
         setattr(existing, field, value)
     db.commit()
     db.refresh(existing)
@@ -1621,6 +1654,8 @@ def delete_boat(
     if existing is None:
         raise HTTPException(status_code=404, detail="Boat not found")
     check_tournament_access(existing.tournament_id, current_user, db)
+    # FK 制約を回避するため関連するレース結果を先に削除
+    db.query(RaceResult).filter(RaceResult.boat_id == boat_id).delete()
     db.delete(existing)
     db.commit()
 

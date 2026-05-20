@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional
 
 class TournamentCreate(BaseModel):
@@ -83,7 +83,7 @@ class RankingProfileOut(BaseModel):
 class BoatCreate(BaseModel):
     entry_number: Optional[int] = None
     boat_number: Optional[str] = None
-    sail_number: str
+    sail_number: Optional[str] = None
     organization_name: Optional[str] = None
     helmsman_name: Optional[str] = None
     helmsman_name2: Optional[str] = None
@@ -99,6 +99,14 @@ class BoatCreate(BaseModel):
     is_individual_scoring_target: bool = True
     group_tags: Optional[str] = None
     notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def require_entry_or_sail(self) -> "BoatCreate":
+        has_sail = bool(self.sail_number and self.sail_number.strip())
+        has_entry = self.entry_number is not None
+        if not has_sail and not has_entry:
+            raise ValueError("entry_number または sail_number のどちらか一方は必須です")
+        return self
 
 
 class BoatOut(BaseModel):

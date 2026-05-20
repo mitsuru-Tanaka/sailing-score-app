@@ -72,7 +72,7 @@ function boatToEditForm(b: Boat): EditForm {
   return {
     entry_number: b.entry_number?.toString() ?? "",
     boat_number: b.boat_number ?? "",
-    sail_number: b.sail_number,
+    sail_number: b.sail_number ?? "",
     organization_name: b.organization_name ?? "",
     helmsman_name: b.helmsman_name ?? "",
     helmsman_name2: b.helmsman_name2 ?? "",
@@ -130,6 +130,30 @@ const MODAL_INPUT: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
+// 列定義（順番はそのままキーボードナビの col インデックスに対応）
+const FIELDS: (keyof RowDraft)[] = [
+  "entry_number","organization_name","boat_number","sail_number",
+  "helmsman_name","helmsman_name2","helmsman_name3",
+  "crew_name","crew_name2","crew_name3",
+];
+const COL_WIDTHS = ["72px", "110px", "72px", "90px", "80px", "72px", "72px", "80px", "72px", "72px", "36px"];
+const HEADERS    = ["Entry No.", "Univ.", "Boat No.", "Sail No.", "Helm 1", "Helm 2", "Helm 3", "Crew 1", "Crew 2", "Crew 3", ""];
+
+const EDIT_FIELDS: { key: keyof EditForm; label: string }[] = [
+  { key: "sail_number",       label: "セールNo." },
+  { key: "entry_number",      label: "Entry No." },
+  { key: "boat_number",       label: "艇番号" },
+  { key: "organization_name", label: "大学・団体名" },
+  { key: "helmsman_name",     label: "ヘルムスマン 1" },
+  { key: "helmsman_name2",    label: "ヘルムスマン 2" },
+  { key: "helmsman_name3",    label: "ヘルムスマン 3" },
+  { key: "crew_name",         label: "クルー 1" },
+  { key: "crew_name2",        label: "クルー 2" },
+  { key: "crew_name3",        label: "クルー 3" },
+  { key: "boat_class",        label: "クラス" },
+  { key: "team_name",         label: "チーム名" },
+];
+
 export default function BoatsPage() {
   const params = useParams();
   const tournamentId = params.id as string;
@@ -140,7 +164,7 @@ export default function BoatsPage() {
   const [rows, setRows] = useState<RowDraft[]>([emptyRow(), emptyRow(), emptyRow()]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [submitResult, setSubmitResult] = useState<{ ok: number; skipped: number } | null>(null);
+  const [submitResult, setSubmitResult] = useState<{ ok: number; skipped: number; errors: string[] } | null>(null);
 
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvLoading, setCsvLoading] = useState(false);
@@ -194,13 +218,52 @@ export default function BoatsPage() {
 
   function removeRow(i: number) { setRows(prev => prev.filter((_, idx) => idx !== i)); }
 
+  // ── キーボードナビゲーション ─────────────────────
+  function focusBoatCell(row: number, col: number) {
+    const el = document.getElementById(`boat-r${row}-c${col}`);
+    if (el) (el as HTMLInputElement).focus();
+  }
+
+  function handleBoatKeyDown(e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, colIdx: number) {
+    const maxCol = FIELDS.length - 1;
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      if (rowIdx < rows.length - 1) {
+        focusBoatCell(rowIdx + 1, colIdx);
+      } else {
+        addRow();
+        setTimeout(() => focusBoatCell(rowIdx + 1, colIdx), 0);
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (rowIdx > 0) focusBoatCell(rowIdx - 1, colIdx);
+    } else if (e.key === "ArrowRight") {
+      const pos = e.currentTarget.selectionStart ?? 0;
+      if (pos === e.currentTarget.value.length && colIdx < maxCol) {
+        e.preventDefault();
+        focusBoatCell(rowIdx, colIdx + 1);
+      }
+    } else if (e.key === "ArrowLeft") {
+      const pos = e.currentTarget.selectionStart ?? 0;
+      if (pos === 0 && colIdx > 0) {
+        e.preventDefault();
+        focusBoatCell(rowIdx, colIdx - 1);
+      }
+    }
+  }
+
   async function handleBatchSubmit() {
     setSubmitError(""); setSubmitResult(null);
-    const filledRows = rows.filter(r => r.sail_number.trim());
-    if (filledRows.length === 0) { setSubmitError("セールNo.を1件以上入力してください"); return; }
+    // Entry No. または Sail No. のいずれかがある行のみ対象
+    const filledRows = rows.filter(r => r.sail_number.trim() || r.entry_number.trim());
+    if (filledRows.length === 0) {
+      setSubmitError("セールNo. または Entry No. を1件以上入力してください");
+      return;
+    }
 
     setSubmitting(true);
     let ok = 0; let skipped = 0;
+    const errors: string[] = [];
     try {
       for (const r of filledRows) {
         const boatClass = activeTab !== "ALL" ? activeTab : (tournament?.class_name || null);
@@ -209,7 +272,7 @@ export default function BoatsPage() {
           body: JSON.stringify({
             entry_number: r.entry_number ? parseInt(r.entry_number) || null : null,
             boat_number: r.boat_number.trim() || null,
-            sail_number: r.sail_number.trim(),
+            sail_number: r.sail_number.trim() || null,
             organization_name: r.organization_name.trim() || null,
             helmsman_name: r.helmsman_name.trim() || null,
             helmsman_name2: r.helmsman_name2.trim() || null,
@@ -221,11 +284,19 @@ export default function BoatsPage() {
             team_name: isTeamEvent ? (r.organization_name.trim() || null) : null,
           }),
         });
-        if (res.ok) ok++; else skipped++;
+        if (res.ok) {
+          ok++;
+        } else {
+          skipped++;
+          const data = await res.json().catch(() => ({}));
+          if (data.detail) errors.push(data.detail);
+        }
       }
-      setSubmitResult({ ok, skipped });
-      setRows([emptyRow(), emptyRow(), emptyRow()]);
-      await fetchBoats();
+      setSubmitResult({ ok, skipped, errors });
+      if (ok > 0) {
+        setRows([emptyRow(), emptyRow(), emptyRow()]);
+        await fetchBoats();
+      }
     } finally {
       setSubmitting(false);
     }
@@ -292,7 +363,10 @@ export default function BoatsPage() {
   async function handleEditSave(e: React.FormEvent) {
     e.preventDefault();
     if (!editingBoat) return;
-    if (!editForm.sail_number.trim()) { setEditError("セールNo.は必須です"); return; }
+    if (!editForm.sail_number.trim() && !editForm.entry_number.trim()) {
+      setEditError("セールNo. または Entry No. のどちらかは必須です");
+      return;
+    }
     setEditSaving(true); setEditError("");
     try {
       const res = await apiFetch(`/boats/${editingBoat.id}`, {
@@ -300,7 +374,7 @@ export default function BoatsPage() {
         body: JSON.stringify({
           entry_number: editForm.entry_number ? parseInt(editForm.entry_number) || null : null,
           boat_number: editForm.boat_number.trim() || null,
-          sail_number: editForm.sail_number.trim(),
+          sail_number: editForm.sail_number.trim() || null,
           organization_name: editForm.organization_name.trim() || null,
           helmsman_name: editForm.helmsman_name.trim() || null,
           helmsman_name2: editForm.helmsman_name2.trim() || null,
@@ -312,7 +386,11 @@ export default function BoatsPage() {
           team_name: editForm.team_name.trim() || null,
         }),
       });
-      if (!res.ok) { setEditError("保存に失敗しました"); return; }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setEditError(data.detail ?? "保存に失敗しました");
+        return;
+      }
       closeEditModal();
       await fetchBoats();
     } finally {
@@ -325,36 +403,14 @@ export default function BoatsPage() {
     if (deletingBoatId === null) return;
     setDeleteError("");
     const res = await apiFetch(`/boats/${deletingBoatId}`, { method: "DELETE" });
-    if (!res.ok && res.status !== 204) {
-      setDeleteError("削除に失敗しました");
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setDeleteError(data.detail ?? "削除に失敗しました");
       return;
     }
     setDeletingBoatId(null);
     await fetchBoats();
   }
-
-  const COL_WIDTHS = ["72px", "110px", "72px", "90px", "80px", "72px", "72px", "80px", "72px", "72px", "36px"];
-  const HEADERS    = ["Entry No.", "Univ.", "Boat No.", "Sail No.*", "Helm 1", "Helm 2", "Helm 3", "Crew 1", "Crew 2", "Crew 3", ""];
-  const FIELDS: (keyof RowDraft)[] = [
-    "entry_number","organization_name","boat_number","sail_number",
-    "helmsman_name","helmsman_name2","helmsman_name3",
-    "crew_name","crew_name2","crew_name3",
-  ];
-
-  const EDIT_FIELDS: { key: keyof EditForm; label: string; required?: boolean }[] = [
-    { key: "sail_number", label: "セールNo.", required: true },
-    { key: "entry_number", label: "Entry No." },
-    { key: "boat_number", label: "艇番号" },
-    { key: "organization_name", label: "大学・団体名" },
-    { key: "helmsman_name", label: "ヘルムスマン 1" },
-    { key: "helmsman_name2", label: "ヘルムスマン 2" },
-    { key: "helmsman_name3", label: "ヘルムスマン 3" },
-    { key: "crew_name", label: "クルー 1" },
-    { key: "crew_name2", label: "クルー 2" },
-    { key: "crew_name3", label: "クルー 3" },
-    { key: "boat_class", label: "クラス" },
-    { key: "team_name", label: "チーム名" },
-  ];
 
   return (
     <>
@@ -401,6 +457,9 @@ export default function BoatsPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
             <h2 style={{ fontSize: "15px", fontWeight: "700", color: TEXT, margin: 0 }}>
               一括入力{activeTab !== "ALL" ? ` — ${activeTab}` : ""}
+              <span style={{ marginLeft: "8px", fontSize: "11px", fontWeight: "400", color: MUTED }}>
+                Enter/↓↑で行移動、←→でセル移動
+              </span>
             </h2>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button
@@ -458,23 +517,28 @@ export default function BoatsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
-                  <tr key={i}>
-                    {FIELDS.map(field => (
+                {rows.map((row, rowIdx) => (
+                  <tr key={rowIdx}>
+                    {FIELDS.map((field, colIdx) => (
                       <td key={field} style={CELL}>
                         <input
+                          id={`boat-r${rowIdx}-c${colIdx}`}
                           value={row[field]}
-                          onChange={e => updateRow(i, field, e.target.value)}
-                          style={{ ...INPUT, borderColor: field === "sail_number" && row[field] ? "#3b82f6" : BORDER }}
-                          placeholder={field === "sail_number" ? "必須" : ""}
+                          onChange={e => updateRow(rowIdx, field, e.target.value)}
+                          onKeyDown={e => handleBoatKeyDown(e, rowIdx, colIdx)}
+                          style={{
+                            ...INPUT,
+                            borderColor: (field === "sail_number" && row[field]) || (field === "entry_number" && row[field]) ? "#3b82f6" : BORDER,
+                          }}
+                          placeholder={field === "sail_number" ? "or Entry No." : field === "entry_number" ? "or Sail No." : ""}
                         />
                       </td>
                     ))}
                     <td style={CELL}>
                       <button
-                        onClick={() => removeRow(i)}
+                        onClick={() => removeRow(rowIdx)}
                         style={{ border: "none", background: "none", cursor: "pointer", color: MUTED, fontSize: "14px", padding: "2px 4px" }}
-                        title="削除"
+                        title="行を削除"
                       >×</button>
                     </td>
                   </tr>
@@ -508,10 +572,15 @@ export default function BoatsPage() {
               {submitting ? "登録中..." : "登録"}
             </button>
             {submitResult && (
-              <span style={{ fontSize: "13px", color: "#0e6657", fontWeight: "600" }}>
-                {submitResult.ok} 件登録完了
-                {submitResult.skipped > 0 ? `、${submitResult.skipped} 件失敗` : ""}
-              </span>
+              <div>
+                <span style={{ fontSize: "13px", color: submitResult.skipped > 0 ? "#dc2626" : "#0e6657", fontWeight: "600" }}>
+                  {submitResult.ok} 件登録完了
+                  {submitResult.skipped > 0 ? `、${submitResult.skipped} 件失敗` : ""}
+                </span>
+                {submitResult.errors.map((err, i) => (
+                  <div key={i} style={{ fontSize: "12px", color: "#dc2626", marginTop: "2px" }}>{err}</div>
+                ))}
+              </div>
             )}
             {submitError && <span style={{ fontSize: "13px", color: "#dc2626" }}>{submitError}</span>}
           </div>
@@ -557,7 +626,7 @@ export default function BoatsPage() {
                     <tr key={boat.id} style={{ backgroundColor: i % 2 === 0 ? WHITE : "#fafbfc" }}>
                       <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.entry_number ?? "-"}</td>
                       <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.boat_number || "-"}</td>
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, fontWeight: "600" }}>{boat.sail_number}</td>
+                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, fontWeight: "600" }}>{boat.sail_number || "-"}</td>
                       <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.organization_name || "-"}</td>
                       {isTeamEvent && (
                         <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.team_name || "-"}</td>
@@ -571,7 +640,6 @@ export default function BoatsPage() {
                       <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.crew_name || "-"}</td>
                       <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.crew_name2 || "-"}</td>
                       <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.crew_name3 || "-"}</td>
-                      {/* 操作ボタン */}
                       <td style={{ padding: "6px 10px", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>
                         <button
                           onClick={() => openEditModal(boat)}
@@ -622,35 +690,32 @@ export default function BoatsPage() {
             maxHeight: "90vh", overflowY: "auto",
             boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: TEXT }}>
                 艇を編集
-                <span style={{ marginLeft: "8px", fontSize: "13px", fontWeight: "400", color: MUTED }}>
-                  #{editingBoat.id}
-                </span>
+                <span style={{ marginLeft: "8px", fontSize: "13px", fontWeight: "400", color: MUTED }}>#{editingBoat.id}</span>
               </h2>
               <button
                 onClick={closeEditModal}
                 style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: MUTED, padding: "4px" }}
               >×</button>
             </div>
+            <p style={{ fontSize: "12px", color: MUTED, marginBottom: "16px" }}>
+              セールNo. または Entry No. のどちらか一方は必須です。
+            </p>
 
             <form onSubmit={handleEditSave}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-                {EDIT_FIELDS.map(({ key, label, required }) => (
+                {EDIT_FIELDS.map(({ key, label }) => (
                   <div key={key}>
                     <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: MUTED, marginBottom: "4px" }}>
-                      {label}{required && <span style={{ color: "#dc2626", marginLeft: "2px" }}>*</span>}
+                      {label}
                     </label>
                     <input
                       type="text"
                       value={editForm[key]}
                       onChange={e => updateEditField(key, e.target.value)}
-                      required={required}
-                      style={{
-                        ...MODAL_INPUT,
-                        borderColor: required && !editForm[key].trim() ? "#fca5a5" : BORDER,
-                      }}
+                      style={{ ...MODAL_INPUT }}
                     />
                   </div>
                 ))}
@@ -702,15 +767,20 @@ export default function BoatsPage() {
           <div style={{
             backgroundColor: WHITE, borderRadius: "14px",
             padding: "28px 32px", width: "100%", maxWidth: "400px",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
-            textAlign: "center",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.25)", textAlign: "center",
           }}>
             <div style={{ fontSize: "32px", marginBottom: "12px" }}>🗑️</div>
             <h2 style={{ fontSize: "16px", fontWeight: "700", color: TEXT, marginBottom: "8px" }}>
               この艇を削除しますか？
             </h2>
-            <p style={{ fontSize: "13px", color: MUTED, marginBottom: "20px" }}>
-              {boats.find(b => b.id === deletingBoatId)?.sail_number} の登録データを削除します。この操作は元に戻せません。
+            <p style={{ fontSize: "13px", color: MUTED, marginBottom: "6px" }}>
+              {(() => {
+                const b = boats.find(b => b.id === deletingBoatId);
+                return b?.sail_number || (b?.entry_number ? `Entry No.${b.entry_number}` : "");
+              })()} の登録データを削除します。
+            </p>
+            <p style={{ fontSize: "12px", color: "#dc2626", marginBottom: "20px" }}>
+              紐づくレース結果もすべて削除されます。この操作は元に戻せません。
             </p>
             {deleteError && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px" }}>{deleteError}</p>}
             <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
