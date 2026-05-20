@@ -593,7 +593,17 @@ export default function StandingsPage() {
         </h1>
         <div className="no-print" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <button
-            onClick={() => window.print()}
+            onClick={async () => {
+              const res = await apiFetch(`/tournaments/${id}/export/pdf`);
+              if (!res.ok) return;
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `tournament_${id}_standings.pdf`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
             style={{
               padding: "9px 18px",
               backgroundColor: WHITE,
@@ -605,7 +615,7 @@ export default function StandingsPage() {
               fontWeight: "600",
             }}
           >
-            🖨️ 印刷
+            📄 PDF出力
           </button>
           <button
             onClick={async () => {

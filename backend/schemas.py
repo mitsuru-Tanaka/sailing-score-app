@@ -1,5 +1,5 @@
 from pydantic import BaseModel, model_validator
-from typing import Optional
+from typing import Optional, List
 
 class TournamentCreate(BaseModel):
     name: str
@@ -135,6 +135,33 @@ class BoatOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class BoatBulkItem(BaseModel):
+    id: Optional[int] = None
+    entry_number: Optional[int] = None
+    boat_number: Optional[str] = None
+    sail_number: Optional[str] = None
+    organization_name: Optional[str] = None
+    helmsman_name: Optional[str] = None
+    helmsman_name2: Optional[str] = None
+    helmsman_name3: Optional[str] = None
+    crew_name: Optional[str] = None
+    crew_name2: Optional[str] = None
+    crew_name3: Optional[str] = None
+    boat_class: Optional[str] = None
+    team_name: Optional[str] = None
+    is_open_entry: bool = False
+    is_team_scoring_target: bool = True
+    is_individual_scoring_target: bool = True
+    group_tags: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class BoatBulkUpdate(BaseModel):
+    boats: List[BoatBulkItem]
+    deleted_ids: List[int] = []
+
 
 class RuleConfigUpdate(BaseModel):
     scheduled_races: int

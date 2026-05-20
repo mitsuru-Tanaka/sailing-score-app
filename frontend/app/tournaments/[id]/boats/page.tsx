@@ -1,7 +1,7 @@
 "use client";
 
 import { apiFetch, API_BASE } from "@/lib/api";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import TournamentNav from "../../../components/TournamentNav";
 
@@ -45,6 +45,7 @@ type Boat = {
   team_name?: string | null;
 };
 
+// バッチ入力行
 type RowDraft = {
   entry_number: string;
   organization_name: string;
@@ -58,6 +59,9 @@ type RowDraft = {
   crew_name3: string;
 };
 
+// インライン編集行
+type EditableRow = RowDraft & { id?: number };
+
 type EditForm = RowDraft & { boat_class: string; team_name: string };
 
 const emptyRow = (): RowDraft => ({
@@ -65,6 +69,8 @@ const emptyRow = (): RowDraft => ({
   sail_number: "", helmsman_name: "", helmsman_name2: "",
   helmsman_name3: "", crew_name: "", crew_name2: "", crew_name3: "",
 });
+
+const emptyEditRow = (): EditableRow => ({ ...emptyRow() });
 
 const emptyEditForm = (): EditForm => ({ ...emptyRow(), boat_class: "", team_name: "" });
 
@@ -82,6 +88,22 @@ function boatToEditForm(b: Boat): EditForm {
     crew_name3: b.crew_name3 ?? "",
     boat_class: b.boat_class ?? "",
     team_name: b.team_name ?? "",
+  };
+}
+
+function boatToEditableRow(b: Boat): EditableRow {
+  return {
+    id: b.id,
+    entry_number: b.entry_number?.toString() ?? "",
+    boat_number: b.boat_number ?? "",
+    sail_number: b.sail_number ?? "",
+    organization_name: b.organization_name ?? "",
+    helmsman_name: b.helmsman_name ?? "",
+    helmsman_name2: b.helmsman_name2 ?? "",
+    helmsman_name3: b.helmsman_name3 ?? "",
+    crew_name: b.crew_name ?? "",
+    crew_name2: b.crew_name2 ?? "",
+    crew_name3: b.crew_name3 ?? "",
   };
 }
 
@@ -130,14 +152,14 @@ const MODAL_INPUT: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-// 列定義（順番はそのままキーボードナビの col インデックスに対応）
+// バッチ入力 列定義
 const FIELDS: (keyof RowDraft)[] = [
   "entry_number","organization_name","boat_number","sail_number",
   "helmsman_name","helmsman_name2","helmsman_name3",
   "crew_name","crew_name2","crew_name3",
 ];
-const COL_WIDTHS = ["72px", "110px", "72px", "90px", "80px", "72px", "72px", "80px", "72px", "72px", "36px"];
-const HEADERS    = ["Entry No.", "Univ.", "Boat No.", "Sail No.", "Helm 1", "Helm 2", "Helm 3", "Crew 1", "Crew 2", "Crew 3", ""];
+const COL_WIDTHS = ["72px","110px","72px","90px","80px","72px","72px","80px","72px","72px","36px"];
+const HEADERS    = ["Entry No.","Univ.","Boat No.","Sail No.","Helm 1","Helm 2","Helm 3","Crew 1","Crew 2","Crew 3",""];
 
 const EDIT_FIELDS: { key: keyof EditForm; label: string }[] = [
   { key: "sail_number",       label: "セールNo." },
@@ -161,7 +183,17 @@ export default function BoatsPage() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [boats, setBoats] = useState<Boat[]>([]);
   const [activeTab, setActiveTab] = useState<string>("ALL");
-  const [rows, setRows] = useState<RowDraft[]>([emptyRow(), emptyRow(), emptyRow()]);
+
+  // ── タブごとに独立したバッチ入力状態 ──────────────────────────────────
+  const [rowsByTab, setRowsByTab] = useState<Record<string, RowDraft[]>>({});
+  const rows = rowsByTab[activeTab] ?? [emptyRow(), emptyRow(), emptyRow()];
+  const setRows = useCallback((fn: RowDraft[] | ((prev: RowDraft[]) => RowDraft[])) => {
+    setRowsByTab(prev => {
+      const cur = prev[activeTab] ?? [emptyRow(), emptyRow(), emptyRow()];
+      return { ...prev, [activeTab]: typeof fn === "function" ? fn(cur) : fn };
+    });
+  }, [activeTab]);
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitResult, setSubmitResult] = useState<{ ok: number; skipped: number; errors: string[] } | null>(null);
@@ -171,13 +203,20 @@ export default function BoatsPage() {
   const [csvResult, setCsvResult] = useState<{ imported: number; skipped: number } | null>(null);
   const [csvError, setCsvError] = useState("");
 
-  // 編集モーダル
+  // ── インライン編集モード ───────────────────────────────────────────────
+  const [editMode, setEditMode] = useState(false);
+  const [editRows, setEditRows] = useState<EditableRow[]>([]);
+  const [deletedBoatIds, setDeletedBoatIds] = useState<Set<number>>(new Set());
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+
+  // ── 旧モーダル編集 ─────────────────────────────────────────────────────
   const [editingBoat, setEditingBoat] = useState<Boat | null>(null);
   const [editForm, setEditForm] = useState<EditForm>(emptyEditForm());
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
-  // 削除確認
+  // ── 削除確認 ─────────────────────────────────────────────────────────────
   const [deletingBoatId, setDeletingBoatId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState("");
 
@@ -218,7 +257,7 @@ export default function BoatsPage() {
 
   function removeRow(i: number) { setRows(prev => prev.filter((_, idx) => idx !== i)); }
 
-  // ── キーボードナビゲーション ─────────────────────
+  // ── バッチ入力 キーボードナビ ──────────────────────────────────────────
   function focusBoatCell(row: number, col: number) {
     const el = document.getElementById(`boat-r${row}-c${col}`);
     if (el) (el as HTMLInputElement).focus();
@@ -254,7 +293,6 @@ export default function BoatsPage() {
 
   async function handleBatchSubmit() {
     setSubmitError(""); setSubmitResult(null);
-    // Entry No. または Sail No. のいずれかがある行のみ対象
     const filledRows = rows.filter(r => r.sail_number.trim() || r.entry_number.trim());
     if (filledRows.length === 0) {
       setSubmitError("セールNo. または Entry No. を1件以上入力してください");
@@ -343,7 +381,127 @@ export default function BoatsPage() {
     }
   }
 
-  // ── 編集 ──────────────────────────────────────────
+  // ── インライン編集モード ───────────────────────────────────────────────
+  function openEditMode() {
+    setEditRows(displayBoats.map(boatToEditableRow));
+    setDeletedBoatIds(new Set());
+    setBulkError("");
+    setEditMode(true);
+  }
+
+  function cancelEditMode() {
+    setEditMode(false);
+    setEditRows([]);
+    setDeletedBoatIds(new Set());
+    setBulkError("");
+  }
+
+  function updateEditRow(i: number, field: keyof RowDraft, value: string) {
+    setEditRows(prev => prev.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
+  }
+
+  function deleteEditRow(i: number) {
+    const row = editRows[i];
+    if (row.id !== undefined) {
+      setDeletedBoatIds(prev => new Set([...prev, row.id!]));
+    }
+    setEditRows(prev => prev.filter((_, idx) => idx !== i));
+  }
+
+  // Excelからのコピペ対応
+  function handleEditPaste(e: React.ClipboardEvent<HTMLInputElement>, startRow: number, startCol: number) {
+    const text = e.clipboardData.getData("text");
+    if (!text.includes("\t") && !text.includes("\n")) return;
+    e.preventDefault();
+    const pastedRows = text.trimEnd().split("\n").map(r => r.split("\t"));
+    setEditRows(prev => {
+      const next = [...prev];
+      pastedRows.forEach((cols, ri) => {
+        const targetRow = startRow + ri;
+        if (targetRow >= next.length) next.push(emptyEditRow());
+        cols.forEach((val, ci) => {
+          const targetCol = startCol + ci;
+          if (targetCol < FIELDS.length) {
+            next[targetRow] = { ...next[targetRow], [FIELDS[targetCol]]: val.trim() };
+          }
+        });
+      });
+      return next;
+    });
+  }
+
+  // 編集テーブルキーボードナビ
+  function focusEditCell(row: number, col: number) {
+    const el = document.getElementById(`edit-r${row}-c${col}`);
+    if (el) (el as HTMLInputElement).focus();
+  }
+
+  function handleEditKeyDown(e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, colIdx: number) {
+    const maxCol = FIELDS.length - 1;
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      if (rowIdx < editRows.length - 1) focusEditCell(rowIdx + 1, colIdx);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (rowIdx > 0) focusEditCell(rowIdx - 1, colIdx);
+    } else if (e.key === "ArrowRight") {
+      if ((e.currentTarget.selectionStart ?? 0) === e.currentTarget.value.length && colIdx < maxCol) {
+        e.preventDefault();
+        focusEditCell(rowIdx, colIdx + 1);
+      }
+    } else if (e.key === "ArrowLeft") {
+      if ((e.currentTarget.selectionStart ?? 0) === 0 && colIdx > 0) {
+        e.preventDefault();
+        focusEditCell(rowIdx, colIdx - 1);
+      }
+    }
+  }
+
+  async function handleBulkSave() {
+    setBulkSaving(true); setBulkError("");
+    try {
+      const boatClass = activeTab !== "ALL" ? activeTab : null;
+      const boats_payload = editRows
+        .filter(r => r.sail_number.trim() || r.entry_number.trim())
+        .map(r => ({
+          id: r.id,
+          entry_number: r.entry_number ? parseInt(r.entry_number) || null : null,
+          boat_number: r.boat_number.trim() || null,
+          sail_number: r.sail_number.trim() || null,
+          organization_name: r.organization_name.trim() || null,
+          helmsman_name: r.helmsman_name.trim() || null,
+          helmsman_name2: r.helmsman_name2.trim() || null,
+          helmsman_name3: r.helmsman_name3.trim() || null,
+          crew_name: r.crew_name.trim() || null,
+          crew_name2: r.crew_name2.trim() || null,
+          crew_name3: r.crew_name3.trim() || null,
+          boat_class: boatClass,
+          team_name: isTeamEvent ? (r.organization_name.trim() || null) : null,
+        }));
+
+      const res = await apiFetch(`/tournaments/${tournamentId}/boats/bulk`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          boats: boats_payload,
+          deleted_ids: Array.from(deletedBoatIds),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setBulkError(data.detail ?? "保存に失敗しました");
+        return;
+      }
+      setEditMode(false);
+      setEditRows([]);
+      setDeletedBoatIds(new Set());
+      await fetchBoats();
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  // ── モーダル編集（単体） ─────────────────────────────────────────────────
   function openEditModal(boat: Boat) {
     setEditingBoat(boat);
     setEditForm(boatToEditForm(boat));
@@ -398,7 +556,7 @@ export default function BoatsPage() {
     }
   }
 
-  // ── 削除 ──────────────────────────────────────────
+  // ── 削除確認 ──────────────────────────────────────────────────────────────
   async function handleDeleteConfirm() {
     if (deletingBoatId === null) return;
     setDeleteError("");
@@ -452,7 +610,7 @@ export default function BoatsPage() {
           </div>
         )}
 
-        {/* Batch input section */}
+        {/* ── バッチ入力セクション ─────────────────────────────────────────── */}
         <div style={{ ...CARD, marginBottom: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
             <h2 style={{ fontSize: "15px", fontWeight: "700", color: TEXT, margin: 0 }}>
@@ -497,7 +655,7 @@ export default function BoatsPage() {
 
           {csvResult && (
             <p style={{ fontSize: "13px", color: "#0e6657", fontWeight: "600", marginBottom: "8px" }}>
-              {csvResult.imported} 件登録、{csvResult.skipped} 件スキップ
+              {csvResult.imported} 件登録（重複は上書き）、{csvResult.skipped} 件スキップ
             </p>
           )}
           {csvError && <p style={{ fontSize: "13px", color: "#dc2626", marginBottom: "8px" }}>{csvError}</p>}
@@ -586,8 +744,8 @@ export default function BoatsPage() {
           </div>
         </div>
 
-        {/* Registered boats */}
-        {displayBoats.length === 0 ? (
+        {/* ── 登録済み艇 ──────────────────────────────────────────────────── */}
+        {displayBoats.length === 0 && !editMode ? (
           <div style={{ ...CARD, textAlign: "center", padding: "40px", color: MUTED }}>
             <div style={{ fontSize: "28px", marginBottom: "10px" }}>⛵</div>
             <p style={{ margin: 0 }}>
@@ -596,85 +754,182 @@ export default function BoatsPage() {
           </div>
         ) : (
           <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${BORDER}` }}>
+            {/* ヘッダー行 */}
+            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ fontSize: "15px", fontWeight: "700", color: TEXT, margin: 0 }}>
                 登録済み艇
                 <span style={{ marginLeft: "8px", fontSize: "13px", fontWeight: "400", color: MUTED }}>
-                  {displayBoats.length} 艇
+                  {editMode ? `${editRows.length} 行編集中` : `${displayBoats.length} 艇`}
                 </span>
               </h2>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {editMode ? (
+                  <>
+                    {bulkError && (
+                      <span style={{ fontSize: "12px", color: "#dc2626", alignSelf: "center" }}>{bulkError}</span>
+                    )}
+                    <button
+                      onClick={cancelEditMode}
+                      style={{
+                        padding: "6px 16px", fontSize: "13px", fontWeight: "600",
+                        backgroundColor: "#f1f5f9", color: TEXT,
+                        border: `1px solid ${BORDER}`, borderRadius: "6px", cursor: "pointer",
+                      }}
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={handleBulkSave}
+                      disabled={bulkSaving}
+                      style={{
+                        padding: "6px 16px", fontSize: "13px", fontWeight: "700",
+                        backgroundColor: "#16a34a", color: WHITE,
+                        border: "none", borderRadius: "6px",
+                        cursor: bulkSaving ? "not-allowed" : "pointer",
+                        opacity: bulkSaving ? 0.7 : 1,
+                      }}
+                    >
+                      {bulkSaving ? "保存中..." : "保存"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={openEditMode}
+                    style={{
+                      padding: "6px 16px", fontSize: "13px", fontWeight: "600",
+                      backgroundColor: "#eef2f7", color: NAV,
+                      border: `1px solid #c7d7e8`, borderRadius: "6px", cursor: "pointer",
+                    }}
+                  >
+                    編集モード
+                  </button>
+                )}
+              </div>
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                <thead>
-                  <tr style={{ backgroundColor: NAV, color: WHITE }}>
-                    {[
-                      "Entry No.", "Boat No.", "Sail No.", "Univ.",
-                      ...(isTeamEvent ? ["Team"] : []),
-                      ...(activeTab === "ALL" ? ["Class"] : []),
-                      "Helm 1", "Helm 2", "Helm 3", "Crew 1", "Crew 2", "Crew 3",
-                      "",
-                    ].map((h, i) => (
-                      <th key={i} style={{ padding: "10px 12px", textAlign: "left", whiteSpace: "nowrap", fontWeight: "600", fontSize: "12px" }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayBoats.map((boat, i) => (
-                    <tr key={boat.id} style={{ backgroundColor: i % 2 === 0 ? WHITE : "#fafbfc" }}>
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.entry_number ?? "-"}</td>
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.boat_number || "-"}</td>
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, fontWeight: "600" }}>{boat.sail_number || "-"}</td>
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.organization_name || "-"}</td>
-                      {isTeamEvent && (
-                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.team_name || "-"}</td>
-                      )}
-                      {activeTab === "ALL" && (
-                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.boat_class || "-"}</td>
-                      )}
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.helmsman_name || "-"}</td>
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.helmsman_name2 || "-"}</td>
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.helmsman_name3 || "-"}</td>
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.crew_name || "-"}</td>
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.crew_name2 || "-"}</td>
-                      <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.crew_name3 || "-"}</td>
-                      <td style={{ padding: "6px 10px", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>
-                        <button
-                          onClick={() => openEditModal(boat)}
-                          style={{
-                            padding: "4px 10px", fontSize: "11px", fontWeight: "600",
-                            backgroundColor: "#eef2f7", color: NAV,
-                            border: `1px solid #c7d7e8`, borderRadius: "5px",
-                            cursor: "pointer", marginRight: "4px",
-                          }}
-                        >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => { setDeletingBoatId(boat.id); setDeleteError(""); }}
-                          style={{
-                            padding: "4px 10px", fontSize: "11px", fontWeight: "600",
-                            backgroundColor: "#fef2f2", color: "#dc2626",
-                            border: "1px solid #fecaca", borderRadius: "5px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          削除
-                        </button>
-                      </td>
+
+            {/* 編集モード: インラインテーブル */}
+            {editMode ? (
+              <div style={{ overflowX: "auto", padding: "12px 16px" }}>
+                <p style={{ fontSize: "11px", color: MUTED, marginTop: 0, marginBottom: "8px" }}>
+                  Enter/↓↑で行移動、←→でセル移動、Excelからのコピペ対応
+                </p>
+                <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
+                  <colgroup>
+                    {COL_WIDTHS.map((w, i) => <col key={i} style={{ width: w }} />)}
+                  </colgroup>
+                  <thead>
+                    <tr style={{ backgroundColor: "#f1f5f9" }}>
+                      {HEADERS.map((h, i) => (
+                        <th key={i} style={{ ...CELL, fontWeight: "600", fontSize: "11px", color: MUTED, whiteSpace: "nowrap", textAlign: "left" }}>
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {editRows.map((row, rowIdx) => (
+                      <tr key={rowIdx} style={{ backgroundColor: rowIdx % 2 === 0 ? WHITE : "#fafbfc" }}>
+                        {FIELDS.map((field, colIdx) => (
+                          <td key={field} style={CELL}>
+                            <input
+                              id={`edit-r${rowIdx}-c${colIdx}`}
+                              value={row[field]}
+                              onChange={e => updateEditRow(rowIdx, field, e.target.value)}
+                              onKeyDown={e => handleEditKeyDown(e, rowIdx, colIdx)}
+                              onPaste={e => handleEditPaste(e, rowIdx, colIdx)}
+                              style={{
+                                ...INPUT,
+                                borderColor: (field === "sail_number" && row[field]) || (field === "entry_number" && row[field]) ? "#3b82f6" : BORDER,
+                              }}
+                            />
+                          </td>
+                        ))}
+                        <td style={CELL}>
+                          <button
+                            onClick={() => deleteEditRow(rowIdx)}
+                            style={{ border: "none", background: "none", cursor: "pointer", color: "#dc2626", fontSize: "14px", padding: "2px 4px" }}
+                            title="行を削除"
+                          >×</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              /* 読み取りモード: 従来の表示 */
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: NAV, color: WHITE }}>
+                      {[
+                        "Entry No.", "Boat No.", "Sail No.", "Univ.",
+                        ...(isTeamEvent ? ["Team"] : []),
+                        ...(activeTab === "ALL" ? ["Class"] : []),
+                        "Helm 1", "Helm 2", "Helm 3", "Crew 1", "Crew 2", "Crew 3",
+                        "",
+                      ].map((h, i) => (
+                        <th key={i} style={{ padding: "10px 12px", textAlign: "left", whiteSpace: "nowrap", fontWeight: "600", fontSize: "12px" }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayBoats.map((boat, i) => (
+                      <tr key={boat.id} style={{ backgroundColor: i % 2 === 0 ? WHITE : "#fafbfc" }}>
+                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.entry_number ?? "-"}</td>
+                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.boat_number || "-"}</td>
+                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, fontWeight: "600" }}>{boat.sail_number || "-"}</td>
+                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.organization_name || "-"}</td>
+                        {isTeamEvent && (
+                          <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.team_name || "-"}</td>
+                        )}
+                        {activeTab === "ALL" && (
+                          <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.boat_class || "-"}</td>
+                        )}
+                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.helmsman_name || "-"}</td>
+                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.helmsman_name2 || "-"}</td>
+                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.helmsman_name3 || "-"}</td>
+                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.crew_name || "-"}</td>
+                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.crew_name2 || "-"}</td>
+                        <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.crew_name3 || "-"}</td>
+                        <td style={{ padding: "6px 10px", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>
+                          <button
+                            onClick={() => openEditModal(boat)}
+                            style={{
+                              padding: "4px 10px", fontSize: "11px", fontWeight: "600",
+                              backgroundColor: "#eef2f7", color: NAV,
+                              border: `1px solid #c7d7e8`, borderRadius: "5px",
+                              cursor: "pointer", marginRight: "4px",
+                            }}
+                          >
+                            編集
+                          </button>
+                          <button
+                            onClick={() => { setDeletingBoatId(boat.id); setDeleteError(""); }}
+                            style={{
+                              padding: "4px 10px", fontSize: "11px", fontWeight: "600",
+                              backgroundColor: "#fef2f2", color: "#dc2626",
+                              border: "1px solid #fecaca", borderRadius: "5px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            削除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
       </main>
 
-      {/* ── 編集モーダル ────────────────────── */}
+      {/* ── 編集モーダル（単体） ─────────────────────────────────────────── */}
       {editingBoat && (
         <div
           style={{
@@ -754,7 +1009,7 @@ export default function BoatsPage() {
         </div>
       )}
 
-      {/* ── 削除確認モーダル ────────────────── */}
+      {/* ── 削除確認モーダル ─────────────────────────────────────────────── */}
       {deletingBoatId !== null && (
         <div
           style={{

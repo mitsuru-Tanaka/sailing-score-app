@@ -23,6 +23,8 @@ from schemas import (
     TournamentOut,
     BoatCreate,
     BoatOut,
+    BoatBulkItem,
+    BoatBulkUpdate,
     RuleConfigUpdate,
     RuleConfigOut,
     RaceCreate,
@@ -478,6 +480,8 @@ def _parse_class_config(cfg: str | None) -> list[str]:
 def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
     from openpyxl.utils import get_column_letter
 
+    now = datetime.now()
+
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -527,8 +531,20 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
         if alignment: cell.alignment = alignment
         if border:    cell.border    = border
 
-    # n_fixed: 順位 Entry大学艇体セールスキッパークルー
-    N_FIXED = 7
+    def apply_outer_border(ws, r1, r2, c1, c2):
+        for row in range(r1, r2 + 1):
+            for col in range(c1, c2 + 1):
+                cell = ws.cell(row=row, column=col)
+                b = cell.border
+                cell.border = Border(
+                    top=med_side    if row == r1 else b.top,
+                    bottom=med_side if row == r2 else b.bottom,
+                    left=med_side   if col == c1 else b.left,
+                    right=med_side  if col == c2 else b.right,
+                )
+
+    # n_fixed: 順位 Entry 大学 艇体 セール Helm1 Helm2 Helm3 Crew1 Crew2 Crew3
+    N_FIXED = 11
 
     date_str = ""
     if tournament.start_date:
@@ -552,14 +568,18 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
         ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols)
         c = ws.cell(row=1, column=1, value=title_text)
         c.font = Font(bold=True, size=13); c.alignment = left_al
-        if date_str:
-            # right-side date in same merged cell — use a separate cell near end
-            pass
+
+        # ── Row 2: timestamp (top-right, 8pt gray) ────────────────────────────
+        ts_cell = ws.cell(row=2, column=total_cols,
+                          value=f"更新日時: {now.strftime('%Y年%m月%d日 %H:%M')}")
+        ts_cell.font = Font(size=8, color="888888")
+        ts_cell.alignment = Alignment(horizontal="right", vertical="center")
 
         # ── Rows 3-4: double-row header ───────────────────────────────────────
         H1, H2 = 3, 4  # header rows
 
-        fixed_hdrs = ["順位", "ｴﾝﾄﾘｰ\nNo", "大学名", "艇体\nNo", "セール\nNo", "スキッパー", "クルー"]
+        fixed_hdrs = ["順位", "ｴﾝﾄﾘｰ\nNo", "大学名", "艇体\nNo", "セール\nNo",
+                      "Helm 1", "Helm 2", "Helm 3", "Crew 1", "Crew 2", "Crew 3"]
         for ci, h in enumerate(fixed_hdrs, 1):
             # merge H1 and H2 for fixed columns
             ws.merge_cells(start_row=H1, start_column=ci, end_row=H2, end_column=ci)
@@ -606,22 +626,30 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
         current_row  = data_start
 
         def write_boat_row(row_num: int, rank_val, univ_val, boat, boat_total, team_total_val,
-                           is_first_in_team: bool):
+                           is_first_in_team: bool, boat_idx_in_team: int = 0, team_boat_count: int = 1):
             top_bdr = med_side if is_first_in_team else thin_side
 
-            def wc(col_i, val, al=None, fnt=None, extra_border=None):
+            # 大学名: チーム内の中段の行にのみ表示（中央揃え）
+            mid_idx = (team_boat_count - 1) // 2
+            show_univ = univ_val if boat_idx_in_team == mid_idx else ""
+
+            def wc(col_i, val, al=None, fnt=None):
                 c = ws.cell(row=row_num, column=col_i, value=val)
                 ap(c, font=fnt or norm9, alignment=al or left_al,
                    border=Border(left=thin_side, right=thin_side,
                                  top=top_bdr, bottom=thin_side))
 
-            wc(1, rank_val if rank_val != "" else "", center_al, bold9 if rank_val != "" else norm9)
-            wc(2, boat.entry_number if boat.entry_number is not None else "", center_al)
-            wc(3, univ_val, left_al)
-            wc(4, boat.boat_number or "", center_al)
-            wc(5, boat.sail_number or "", center_al)
-            wc(6, boat.helmsman_name or "", left_al)
-            wc(7, boat.crew_name or "", left_al)
+            wc(1,  rank_val if rank_val != "" else "", center_al, bold9 if rank_val != "" else norm9)
+            wc(2,  boat.entry_number if boat.entry_number is not None else "", center_al)
+            wc(3,  show_univ, center_al, bold9 if show_univ else norm9)
+            wc(4,  boat.boat_number or "", center_al)
+            wc(5,  boat.sail_number or "", center_al)
+            wc(6,  boat.helmsman_name or "", left_al)
+            wc(7,  boat.helmsman_name2 or "", left_al)
+            wc(8,  boat.helmsman_name3 or "", left_al)
+            wc(9,  boat.crew_name or "", left_al)
+            wc(10, boat.crew_name2 or "", left_al)
+            wc(11, boat.crew_name3 or "", left_al)
 
             data_col = N_FIXED + 1
             for ri2, race in enumerate(races):
@@ -680,7 +708,8 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
                 if boat is None:
                     continue
                 write_boat_row(current_row, item["rank"], boat.organization_name or "",
-                               boat, item["net_points"], "", True)
+                               boat, item["net_points"], "", True,
+                               boat_idx_in_team=0, team_boat_count=1)
                 current_row += 1
         else:
             # Group boats by team
@@ -725,39 +754,54 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
             sorted_teams = sorted(team_boats_map.keys(), key=team_sort_key)
             for rank, tname in enumerate(sorted_teams, 1):
                 t_total = team_net(tname)
-                for i, boat in enumerate(team_boats_map[tname]):
+                team_boat_list = team_boats_map[tname]
+                for i, boat in enumerate(team_boat_list):
                     write_boat_row(
                         current_row,
                         rank if i == 0 else "",
-                        tname if i == 0 else "",
+                        tname,
                         boat,
                         boat_net(boat.id),
                         t_total if i == 0 else "",
                         i == 0,
+                        boat_idx_in_team=i,
+                        team_boat_count=len(team_boat_list),
                     )
                     current_row += 1
 
-        # ── Race info footer (per race in its own columns) ─────────────────────
-        footer_labels = ["レース日", "天気", "風向", "風速", "スタート時刻",
-                         "フィニッシュ(Top)", "フィニッシュ(Last)"]
-        footer_start = current_row + 2
+        # ── 外枠太線: メインデータ表 ──────────────────────────────────────────
+        apply_outer_border(ws, H1, current_row - 1, 1, total_cols)
 
-        # label column (col 1)
+        # ── Race info footer (得点表の下に1行空白を挟んで別表) ─────────────────
+        footer_labels = ["レース日", "天気", "風向", "風速", "スタート",
+                         "Top", "Last"]
+        footer_start = current_row + 1   # current_row が空白行、+1 がフッター開始
+        footer_end_row = footer_start + len(footer_labels) - 1
+        footer_end_col = N_FIXED + n_races * 3   # 最終レース列まで
+
+        # フッター全セルに細枠を先付け（中間空白列 2〜N_FIXED も含む）
+        for fi in range(len(footer_labels)):
+            r = footer_start + fi
+            for ci2 in range(1, footer_end_col + 1):
+                ws.cell(row=r, column=ci2).border = tb()
+
+        # ラベル列 (col 1)
         for fi, label in enumerate(footer_labels):
             r = footer_start + fi
             c = ws.cell(row=r, column=1, value=label)
             ap(c, fill=gray_fill, font=bold9, alignment=left_al, border=tb())
 
+        # レースデータ列 (得点表の R1, R2... 列と同じ位置)
         for ri, race in enumerate(races):
-            base_col = N_FIXED + ri * 3 + 1  # first col of this race's group
+            base_col = N_FIXED + ri * 3 + 1
             vals = [
-                getattr(race, "race_date",         "") or "",
-                getattr(race, "weather",            "") or "",
-                getattr(race, "wind_direction",     "") or "",
-                getattr(race, "wind_speed",         "") or "",
-                getattr(race, "start_time",         "") or "",
-                getattr(race, "finish_time_top",    "") or "",
-                getattr(race, "finish_time_last",   "") or "",
+                getattr(race, "race_date",          "") or "",
+                getattr(race, "weather",             "") or "",
+                getattr(race, "wind_direction",      "") or "",
+                getattr(race, "wind_speed",          "") or "",
+                getattr(race, "start_time",          "") or "",
+                getattr(race, "finish_time_top",     "") or "",
+                getattr(race, "finish_time_last",    "") or "",
             ]
             for fi, val in enumerate(vals):
                 r = footer_start + fi
@@ -766,8 +810,13 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
                 c = ws.cell(row=r, column=base_col, value=val)
                 ap(c, font=norm9, alignment=center_al, border=tb())
 
+        # 外枠太線: レース情報表
+        if n_races > 0:
+            apply_outer_border(ws, footer_start, footer_end_row, 1, footer_end_col)
+
         # ── Column widths ─────────────────────────────────────────────────────
-        col_widths = {1: 5, 2: 8, 3: 18, 4: 7, 5: 10, 6: 14, 7: 14}
+        col_widths = {1: 5, 2: 7, 3: 16, 4: 6, 5: 9,
+                      6: 11, 7: 9, 8: 9, 9: 11, 10: 9, 11: 9}
         for ci, w in col_widths.items():
             ws.column_dimensions[get_column_letter(ci)].width = w
         for ri2 in range(n_races):
@@ -779,6 +828,20 @@ def build_standings_workbook(tournament_id: int, db: Session) -> Workbook:
         ws.column_dimensions[get_column_letter(tail_base)].width = 8
         if is_team:
             ws.column_dimensions[get_column_letter(tail_base + 1)].width = 9
+
+        # ── 空欄列の非表示 ────────────────────────────────────────────────────
+        has_entry   = any(b.entry_number is not None for b in boats)
+        has_boat_no = any(b.boat_number  for b in boats)
+        has_helm2   = any(b.helmsman_name2 for b in boats)
+        has_helm3   = any(b.helmsman_name3 for b in boats)
+        has_crew2   = any(b.crew_name2   for b in boats)
+        has_crew3   = any(b.crew_name3   for b in boats)
+        if not has_entry:   ws.column_dimensions[get_column_letter(2)].hidden  = True
+        if not has_boat_no: ws.column_dimensions[get_column_letter(4)].hidden  = True
+        if not has_helm2:   ws.column_dimensions[get_column_letter(7)].hidden  = True
+        if not has_helm3:   ws.column_dimensions[get_column_letter(8)].hidden  = True
+        if not has_crew2:   ws.column_dimensions[get_column_letter(10)].hidden = True
+        if not has_crew3:   ws.column_dimensions[get_column_letter(11)].hidden = True
 
         ws.freeze_panes = ws.cell(row=data_start, column=1)
 
@@ -1540,18 +1603,31 @@ async def import_boats_csv(
             skipped += 1
             continue
 
-        dup = db.query(Boat).filter(
+        entry_raw = (row.get("entry_number") or "").strip()
+        entry_num = int(entry_raw) if entry_raw.isdigit() else None
+        resolved_class = boat_class or _s(row.get("boat_class"))
+
+        existing = db.query(Boat).filter(
             Boat.tournament_id == tournament_id,
             Boat.sail_number == sail_number,
         ).first()
-        if dup:
-            skipped += 1
+        if existing:
+            # sail_number が一致する艇は上書き更新
+            existing.entry_number     = entry_num
+            existing.boat_number      = _s(row.get("boat_number"))
+            existing.organization_name= _s(row.get("organization_name"))
+            existing.helmsman_name    = _s(row.get("helmsman_name"))
+            existing.helmsman_name2   = _s(row.get("helmsman_name2"))
+            existing.helmsman_name3   = _s(row.get("helmsman_name3"))
+            existing.crew_name        = _s(row.get("crew_name"))
+            existing.crew_name2       = _s(row.get("crew_name2"))
+            existing.crew_name3       = _s(row.get("crew_name3"))
+            if resolved_class:
+                existing.boat_class   = resolved_class
+            if _s(row.get("team_name")):
+                existing.team_name    = _s(row.get("team_name"))
+            imported += 1
             continue
-
-        entry_raw = (row.get("entry_number") or "").strip()
-        entry_num = int(entry_raw) if entry_raw.isdigit() else None
-
-        resolved_class = boat_class or _s(row.get("boat_class"))
 
         db.add(Boat(
             tournament_id=tournament_id,
@@ -1658,6 +1734,80 @@ def delete_boat(
     db.query(RaceResult).filter(RaceResult.boat_id == boat_id).delete()
     db.delete(existing)
     db.commit()
+
+
+@app.patch("/tournaments/{tournament_id}/boats/bulk")
+def bulk_update_boats(
+    tournament_id: int,
+    payload: BoatBulkUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """艇を一括更新: id あり→更新, id なし→新規追加, deleted_ids→削除"""
+    check_tournament_access(tournament_id, current_user, db)
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    is_team = tournament.event_template in ("TEAM_3_BOATS", "TEAM_4_BOATS", "MULTI_GROUP_HYBRID")
+
+    # 削除
+    for bid in payload.deleted_ids:
+        boat = db.query(Boat).filter(Boat.id == bid, Boat.tournament_id == tournament_id).first()
+        if boat:
+            db.query(RaceResult).filter(RaceResult.boat_id == bid).delete()
+            db.delete(boat)
+
+    updated = 0
+    created = 0
+    for item in payload.boats:
+        sail = (item.sail_number or "").strip() or None
+        if sail is None and item.entry_number is None:
+            continue  # 識別子なし行はスキップ
+
+        team_name = item.team_name
+        if is_team and not team_name:
+            team_name = (item.organization_name or "").strip() or None
+
+        if item.id is not None:
+            boat = db.query(Boat).filter(
+                Boat.id == item.id, Boat.tournament_id == tournament_id
+            ).first()
+            if boat:
+                boat.entry_number      = item.entry_number
+                boat.boat_number       = (item.boat_number or "").strip() or None
+                boat.sail_number       = sail or boat.sail_number
+                boat.organization_name = (item.organization_name or "").strip() or None
+                boat.helmsman_name     = (item.helmsman_name  or "").strip() or None
+                boat.helmsman_name2    = (item.helmsman_name2 or "").strip() or None
+                boat.helmsman_name3    = (item.helmsman_name3 or "").strip() or None
+                boat.crew_name         = (item.crew_name  or "").strip() or None
+                boat.crew_name2        = (item.crew_name2 or "").strip() or None
+                boat.crew_name3        = (item.crew_name3 or "").strip() or None
+                if item.boat_class:
+                    boat.boat_class    = item.boat_class
+                boat.team_name         = team_name
+                updated += 1
+        else:
+            db.add(Boat(
+                tournament_id=tournament_id,
+                entry_number=item.entry_number,
+                boat_number=(item.boat_number or "").strip() or None,
+                sail_number=sail,
+                organization_name=(item.organization_name or "").strip() or None,
+                helmsman_name=(item.helmsman_name  or "").strip() or None,
+                helmsman_name2=(item.helmsman_name2 or "").strip() or None,
+                helmsman_name3=(item.helmsman_name3 or "").strip() or None,
+                crew_name=(item.crew_name  or "").strip() or None,
+                crew_name2=(item.crew_name2 or "").strip() or None,
+                crew_name3=(item.crew_name3 or "").strip() or None,
+                boat_class=item.boat_class,
+                team_name=team_name,
+            ))
+            created += 1
+
+    db.commit()
+    return {"updated": updated, "created": created, "deleted": len(payload.deleted_ids)}
 
 
 @app.get("/tournaments/{tournament_id}/rules", response_model=RuleConfigOut)
@@ -1984,6 +2134,172 @@ def export_excel(tournament_id: int, db: Session = Depends(get_db), current_user
             "Content-Disposition": f'attachment; filename="{filename}"'
         },
     )
+
+@app.get("/tournaments/{tournament_id}/export/pdf")
+def export_pdf(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    try:
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        from reportlab.lib.units import mm
+    except ImportError:
+        raise HTTPException(status_code=500, detail="reportlab がインストールされていません")
+
+    check_tournament_access(tournament_id, current_user, db)
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    try:
+        pdfmetrics.registerFont(UnicodeCIDFont("HeiseiKakuGo-W5"))
+        font_name = "HeiseiKakuGo-W5"
+    except Exception:
+        font_name = "Helvetica"
+
+    is_team   = tournament.event_template in ("TEAM_3_BOATS", "TEAM_4_BOATS", "MULTI_GROUP_HYBRID")
+    team_size = 4 if tournament.event_template == "TEAM_4_BOATS" else 3
+
+    all_boats = (
+        db.query(Boat)
+        .filter(Boat.tournament_id == tournament_id)
+        .order_by(Boat.id)
+        .all()
+    )
+    races, race_result_map = get_race_result_details_by_boat(tournament_id, db)
+    classes = _parse_class_config(tournament.class_config)
+    now = datetime.now()
+    navy = colors.HexColor("#1F4E78")
+
+    def _normal(size=8):
+        return ParagraphStyle("n", fontName=font_name, fontSize=size)
+
+    def build_elements(boats_list, sheet_class):
+        elems = []
+        title = tournament.name + (f"  {sheet_class}" if sheet_class else "")
+        elems.append(Paragraph(title, ParagraphStyle("t", fontName=font_name, fontSize=13, spaceAfter=2)))
+        ts = f"更新日時: {now.strftime('%Y年%m月%d日 %H:%M')}"
+        elems.append(Paragraph(ts, ParagraphStyle("ts", fontName=font_name, fontSize=7,
+                                                  textColor=colors.HexColor("#888888"), spaceAfter=4)))
+
+        n_races = len(races)
+        fixed_hdr = ["順位", "大学名", "セールNo.", "スキッパー", "クルー"]
+        race_hdrs = [f"R{r.race_number}" for r in races]
+        tail_hdrs = ["艇計", "大学計"] if is_team else ["合計"]
+        headers = [fixed_hdr + race_hdrs + tail_hdrs]
+
+        def _pts(bid, race):
+            d = race_result_map.get((race.id, bid))
+            return str(d["points"]) if d and d.get("points") is not None else ""
+
+        rows_data = []
+        if not is_team:
+            standings = calculate_individual_standings(tournament_id, db)
+            bmap = {b.id: b for b in all_boats}
+            bid_set = {b.id for b in boats_list} if sheet_class else None
+            for item in standings:
+                if bid_set and item["boat_id"] not in bid_set:
+                    continue
+                b = bmap.get(item["boat_id"])
+                if not b:
+                    continue
+                rows_data.append([
+                    str(item["rank"]), b.organization_name or "", b.sail_number or "",
+                    b.helmsman_name or "", b.crew_name or "",
+                ] + [_pts(b.id, r) for r in races] + [str(item["net_points"])])
+        else:
+            tbm: dict[str, list] = {}
+            for b in boats_list:
+                t = b.team_name or b.organization_name or "未設定"
+                tbm.setdefault(t, []).append(b)
+
+            def _tnet(tn):
+                tot = 0
+                for race in races:
+                    pl = sorted(p for b in tbm[tn]
+                                if (p := (race_result_map.get((race.id, b.id)) or {}).get("points")) is not None)
+                    tot += sum(pl[:team_size])
+                return tot
+
+            def _bnet(bid):
+                return sum((race_result_map.get((r.id, bid)) or {}).get("points") or 0 for r in races)
+
+            for rank, tn in enumerate(sorted(tbm, key=lambda t: (_tnet(t), t)), 1):
+                tt = _tnet(tn)
+                for i, b in enumerate(tbm[tn]):
+                    rows_data.append([
+                        str(rank) if i == 0 else "",
+                        tn if i == 0 else "",
+                        b.sail_number or "",
+                        b.helmsman_name or "",
+                        b.crew_name or "",
+                    ] + [_pts(b.id, r) for r in races]
+                    + [str(_bnet(b.id)), str(tt) if i == 0 else ""])
+
+        cw = [10*mm, 32*mm, 18*mm, 26*mm, 26*mm] + [14*mm]*n_races + ([14*mm, 14*mm] if is_team else [14*mm])
+        tbl = Table(headers + rows_data, colWidths=cw, repeatRows=1)
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0),  navy),
+            ("TEXTCOLOR",     (0, 0), (-1, 0),  colors.white),
+            ("FONTNAME",      (0, 0), (-1, -1), font_name),
+            ("FONTSIZE",      (0, 0), (-1, -1), 8),
+            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+            ("ALIGN",         (1, 1), (1, -1),  "LEFT"),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("GRID",          (0, 0), (-1, -1), 0.4, colors.black),
+            ("BOX",           (0, 0), (-1, -1), 1.2, colors.black),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F5F5")]),
+        ]))
+        elems.append(tbl)
+
+        if races:
+            elems.append(Spacer(1, 5*mm))
+            flabels = ["レース日", "天気", "風向", "風速", "スタート", "Top", "Last"]
+            fattrs  = ["race_date","weather","wind_direction","wind_speed",
+                       "start_time","finish_time_top","finish_time_last"]
+            fdata = [[""] + [f"R{r.race_number}" for r in races]]
+            for lbl, attr in zip(flabels, fattrs):
+                fdata.append([lbl] + [getattr(r, attr) or "" for r in races])
+            fcw = [25*mm] + [14*mm]*n_races
+            ftbl = Table(fdata, colWidths=fcw)
+            ftbl.setStyle(TableStyle([
+                ("FONTNAME",  (0, 0), (-1, -1), font_name),
+                ("FONTSIZE",  (0, 0), (-1, -1), 8),
+                ("BACKGROUND",(0, 0), (-1, 0),  colors.HexColor("#F0F4F8")),
+                ("GRID",      (0, 0), (-1, -1), 0.4, colors.black),
+                ("BOX",       (0, 0), (-1, -1), 1.2, colors.black),
+                ("ALIGN",     (0, 0), (-1, -1), "CENTER"),
+                ("ALIGN",     (0, 1), (0, -1),  "LEFT"),
+                ("VALIGN",    (0, 0), (-1, -1), "MIDDLE"),
+            ]))
+            elems.append(ftbl)
+
+        return elems
+
+    output = BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4),
+                            leftMargin=12*mm, rightMargin=12*mm,
+                            topMargin=12*mm, bottomMargin=12*mm)
+    all_elems = []
+    if len(classes) >= 2:
+        for cls in classes:
+            all_elems.extend(build_elements([b for b in all_boats if b.boat_class == cls], cls))
+    elif len(classes) == 1:
+        all_elems.extend(build_elements([b for b in all_boats if b.boat_class == classes[0]], classes[0]))
+    else:
+        all_elems.extend(build_elements(all_boats, None))
+
+    doc.build(all_elems)
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="tournament_{tournament_id}_standings.pdf"'},
+    )
+
 
 @app.post("/tournaments/{tournament_id}/seed/team3-demo")
 def seed_team3_demo(tournament_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
