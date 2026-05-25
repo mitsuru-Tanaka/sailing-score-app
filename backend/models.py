@@ -157,6 +157,12 @@ class RuleConfig(Base):
     fleet_split_method = Column(String, nullable=False, default="own")
     preset_template = Column(String, nullable=False, default="custom")
 
+    stp_penalty_points = Column(Float, nullable=False, default=3.0)
+    scp_multiplier = Column(Float, nullable=False, default=1.3)
+    arb_multiplier = Column(Float, nullable=False, default=1.3)
+    prp_multiplier = Column(Float, nullable=False, default=1.3)
+    zfp_multiplier = Column(Float, nullable=False, default=1.2)
+
 
 class Race(Base):
     __tablename__ = "races"

@@ -192,6 +192,11 @@ class RuleConfigUpdate(BaseModel):
     fleet_split: bool = False
     fleet_split_method: str = "own"
     preset_template: str = "custom"
+    stp_penalty_points: float = 3.0
+    scp_multiplier: float = 1.3
+    arb_multiplier: float = 1.3
+    prp_multiplier: float = 1.3
+    zfp_multiplier: float = 1.2
 
 
 class RuleConfigOut(BaseModel):
@@ -225,6 +230,11 @@ class RuleConfigOut(BaseModel):
     fleet_split: bool = False
     fleet_split_method: str = "own"
     preset_template: str = "custom"
+    stp_penalty_points: float = 3.0
+    scp_multiplier: float = 1.3
+    arb_multiplier: float = 1.3
+    prp_multiplier: float = 1.3
+    zfp_multiplier: float = 1.2
 
     class Config:
         from_attributes = True
@@ -270,6 +280,7 @@ class RaceResultInput(BaseModel):
     result_code: str = "OK"
     note: str | None = None
     manual_points: int | None = None  # RDG / DPI 用手動得点
+    manual_override_points: Optional[int] = None  # 得点上書き（任意コード）
 
 
 class RaceResultOut(BaseModel):

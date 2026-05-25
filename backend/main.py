@@ -169,6 +169,10 @@ def calculate_points_for_result(
     code = item.result_code
     fp   = item.finish_position
 
+    # 手動上書き得点が指定されている場合は最優先で返す
+    if getattr(item, "manual_override_points", None) is not None:
+        return item.manual_override_points
+
     # 通常フィニッシュ
     if code == "OK":
         if fp is None:
@@ -207,19 +211,27 @@ def calculate_points_for_result(
     if code == "STP":
         sp_method = getattr(rule_config, "sp_method", "dsq")
         if sp_method == "add_one":
-            return fp + 1
+            stp_pts = getattr(rule_config, "stp_penalty_points", 3.0)
+            return math.ceil(fp + stp_pts)
         return apply_scoring_rule(rule_config.dsq_rule, entries_count, starters_count)
 
-    if code in ("SCP", "ARB"):               # 各種ペナルティ ×1.3 切り上げ
-        return math.ceil(fp * 1.3)
+    if code == "SCP":
+        mult = getattr(rule_config, "scp_multiplier", 1.3)
+        return math.ceil(fp * mult)
+
+    if code == "ARB":
+        mult = getattr(rule_config, "arb_multiplier", 1.3)
+        return math.ceil(fp * mult)
 
     if code == "PRP":                        # 付則T — 無効時はエラー
         if not getattr(rule_config, "use_appendix_t", True):
             raise HTTPException(status_code=400, detail="PRP コードは無効です（付則T が適用されていません）")
-        return math.ceil(fp * 1.3)
+        mult = getattr(rule_config, "prp_multiplier", 1.3)
+        return math.ceil(fp * mult)
 
-    if code == "ZFP":                        # 規則30.2 ×1.2 切り上げ
-        return math.ceil(fp * 1.2)
+    if code == "ZFP":                        # 規則30.2 — 乗数設定
+        mult = getattr(rule_config, "zfp_multiplier", 1.2)
+        return math.ceil(fp * mult)
 
     raise HTTPException(status_code=400, detail=f"Unsupported result_code: {code}")
 

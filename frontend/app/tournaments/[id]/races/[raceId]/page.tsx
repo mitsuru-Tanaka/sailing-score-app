@@ -40,6 +40,7 @@ type FinishRow = {
   sailInput: string;
   entryInput: string;
   codeInput: string;  // "" = OK
+  manualOverrideInput: string;  // 手動上書き得点
 };
 
 type PenaltyEntry = {
@@ -65,8 +66,8 @@ type BoatResultRow = {
 
 const NEEDS_FINISH_POS = new Set(["OK", "DSQ", "NSC", "STP", "SCP", "ARB", "PRP", "ZFP"]);
 const MANUAL_CODES     = new Set(["RDG", "DPI"]);
-const ROW1_CODES = ["DNS", "DNC", "OCS", "DNF", "RET", "BFD", "UFD"] as const;
-const ROW2_CODES = ["DSQ", "NSC", "DNE", "STP", "SCP", "ZFP", "RDG", "DPI"] as const;
+const ROW1_CODES = ["BFD", "DNC", "DNF", "DNS", "DNE", "NSC", "OCS", "RET", "UFD"] as const;
+const ROW2_CODES = ["ARB", "DPI", "DSQ", "PRP", "RDG", "SCP", "STP", "ZFP"] as const;
 
 const NAV    = "#1F4E78";
 const BORDER = "#e2e8f0";
@@ -172,7 +173,7 @@ export default function RaceResultPage() {
         const newSlots: Record<string, ClassSlot> = {};
         if (cls.length === 0) {
           newSlots["ALL"] = {
-            finish: boatsData.map(() => ({ boatId: null, sailInput: "", entryInput: "", codeInput: "" })),
+            finish: boatsData.map(() => ({ boatId: null, sailInput: "", entryInput: "", codeInput: "", manualOverrideInput: "" })),
             penalties: [],
           };
           setActiveClass("ALL");
@@ -180,7 +181,7 @@ export default function RaceResultPage() {
           for (const c of cls) {
             const cb = boatsData.filter((b) => b.boat_class === c);
             newSlots[c] = {
-              finish: cb.map(() => ({ boatId: null, sailInput: "", entryInput: "", codeInput: "" })),
+              finish: cb.map(() => ({ boatId: null, sailInput: "", entryInput: "", codeInput: "", manualOverrideInput: "" })),
               penalties: [],
             };
           }
@@ -193,7 +194,7 @@ export default function RaceResultPage() {
           const targetClass = cls.length === 0 ? "ALL" : (boat.boat_class ?? cls[0]);
           const s = newSlots[targetClass];
           if (!s) return;
-          const FINISH_TABLE_CODES = new Set(["OK", "DSQ", "NSC", "STP", "SCP", "ARB", "PRP", "ZFP"]);
+          const FINISH_TABLE_CODES = new Set(["OK","DSQ","NSC","STP","SCP","ARB","PRP","ZFP","BFD","DNC","DNE","DNF","DNS","DPI","OCS","RDG","RET","UFD"]);
           if (result.finish_position != null && FINISH_TABLE_CODES.has(result.result_code)) {
             const idx = result.finish_position - 1;
             if (idx >= 0 && idx < s.finish.length) {
@@ -202,6 +203,7 @@ export default function RaceResultPage() {
                 sailInput: boat.sail_number,
                 entryInput: boat.entry_number?.toString() ?? "",
                 codeInput: result.result_code === "OK" ? "" : result.result_code,
+                manualOverrideInput: "",
               };
             }
           } else if (result.result_code !== "OK") {
@@ -251,7 +253,7 @@ export default function RaceResultPage() {
   }
 
   // ---- Tab 1 helpers ----
-  function updateFinishRow(index: number, field: "sailInput" | "entryInput" | "codeInput", value: string) {
+  function updateFinishRow(index: number, field: "sailInput" | "entryInput" | "codeInput" | "manualOverrideInput", value: string) {
     setClassSlots((prev) => {
       const current = prev[activeClass] ?? emptySlot();
       const next = [...current.finish];
@@ -271,7 +273,7 @@ export default function RaceResultPage() {
         if (!value) return { ...prev, [activeClass]: { ...current, finish: next } };
         const found = activeBoats.find((b) => b.entry_number?.toString() === value);
         next[index].boatId = found?.id ?? null;
-        if (found) next[index].sailInput = found.sail_number;
+        // sailInput は上書きしない（部分入力で別艇の sail が入るバグを防止）
       }
       // codeInput: no boat lookup needed, just update the field
       return { ...prev, [activeClass]: { ...current, finish: next } };
@@ -330,7 +332,7 @@ export default function RaceResultPage() {
     Object.values(classSlots).forEach((s) => {
       s.finish.forEach((row, i) => {
         if (row.boatId !== null) {
-          payload.set(row.boatId, { boat_id: row.boatId, finish_position: i + 1, result_code: row.codeInput || "OK", note: null, manual_points: null });
+          payload.set(row.boatId, { boat_id: row.boatId, finish_position: i + 1, result_code: row.codeInput || "OK", note: null, manual_points: null, manual_override_points: row.manualOverrideInput ? Number(row.manualOverrideInput) : null });
         }
       });
       s.penalties.forEach((entry) => {
@@ -639,7 +641,7 @@ export default function RaceResultPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
                   <thead>
                     <tr style={{ backgroundColor: NAV, color: WHITE }}>
-                      {["着順", "Sail No.", "Entry No.", "コード", "大学名", "スキッパー"].map((h) => (
+                      {["着順", "Sail No.", "Entry No.", "コード", "手動得点", "大学名", "スキッパー"].map((h) => (
                         <th key={h} style={{ padding: "12px 14px", textAlign: "left", whiteSpace: "nowrap", fontWeight: "600", fontSize: "13px", borderRight: "1px solid rgba(255,255,255,0.1)" }}>
                           {h}
                         </th>
@@ -673,6 +675,7 @@ export default function RaceResultPage() {
                             <input
                               id={`fin-${activeClass}-${i}-1`}
                               list="entry-list"
+                              autoComplete="off"
                               value={row.entryInput}
                               onChange={(e) => updateFinishRow(i, "entryInput", e.target.value)}
                               onKeyDown={(e) => handleFinKeyDown(e, i, 1)}
@@ -685,17 +688,36 @@ export default function RaceResultPage() {
                             <select
                               value={row.codeInput}
                               onChange={(e) => updateFinishRow(i, "codeInput", e.target.value)}
-                              style={{ padding: "5px 6px", border: `1px solid ${row.codeInput ? "#f59e0b" : "#94adc8"}`, borderRadius: "6px", fontSize: "12px", fontWeight: row.codeInput ? "700" : "400", color: row.codeInput ? "#92400e" : TEXT, backgroundColor: row.codeInput ? "#fef3c7" : WHITE, cursor: "pointer", width: "72px" }}
+                              style={{ padding: "5px 6px", border: `1px solid ${row.codeInput ? "#f59e0b" : "#94adc8"}`, borderRadius: "6px", fontSize: "12px", fontWeight: row.codeInput ? "700" : "400", color: row.codeInput ? "#92400e" : TEXT, backgroundColor: row.codeInput ? "#fef3c7" : WHITE, cursor: "pointer", width: "76px" }}
                             >
                               <option value="">—</option>
+                              <option value="ARB">ARB</option>
+                              <option value="BFD">BFD</option>
+                              <option value="DNC">DNC</option>
+                              <option value="DNE">DNE</option>
+                              <option value="DNF">DNF</option>
+                              <option value="DNS">DNS</option>
+                              <option value="DPI">DPI</option>
                               <option value="DSQ">DSQ</option>
                               <option value="NSC">NSC</option>
-                              <option value="STP">STP</option>
-                              <option value="SCP">SCP</option>
-                              <option value="ZFP">ZFP</option>
-                              <option value="ARB">ARB</option>
+                              <option value="OCS">OCS</option>
                               <option value="PRP">PRP</option>
+                              <option value="RDG">RDG</option>
+                              <option value="RET">RET</option>
+                              <option value="SCP">SCP</option>
+                              <option value="STP">STP</option>
+                              <option value="UFD">UFD</option>
+                              <option value="ZFP">ZFP</option>
                             </select>
+                          </td>
+                          <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}` }}>
+                            <input
+                              type="number"
+                              value={row.manualOverrideInput}
+                              onChange={(e) => updateFinishRow(i, "manualOverrideInput", e.target.value)}
+                              placeholder="—"
+                              style={{ ...inpStyle("64px"), backgroundColor: row.manualOverrideInput ? "#fef3c7" : WHITE, borderColor: row.manualOverrideInput ? "#f59e0b" : "#94adc8" }}
+                            />
                           </td>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, color: boat ? TEXT : MUTED, fontSize: "13px" }}>
                             {boat?.organization_name ?? "—"}

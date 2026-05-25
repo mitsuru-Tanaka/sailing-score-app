@@ -37,6 +37,11 @@ type RuleConfig = {
   fleet_split?: boolean;
   fleet_split_method?: string;
   preset_template?: string;
+  stp_penalty_points?: number;
+  scp_multiplier?: number;
+  arb_multiplier?: number;
+  prp_multiplier?: number;
+  zfp_multiplier?: number;
 };
 
 type PresetKey = "kanto_team" | "kanto_individual" | "zennihon_team" | "zennihon_individual" | "kanto_women" | "custom";
@@ -167,6 +172,11 @@ export default function RulesPage() {
     fleet_split: false,
     fleet_split_method: "own",
     preset_template: "custom",
+    stp_penalty_points: 3,
+    scp_multiplier: 1.3,
+    arb_multiplier: 1.3,
+    prp_multiplier: 1.3,
+    zfp_multiplier: 1.2,
   });
   const [customCodes, setCustomCodes] = useState<string[]>([]);
   const [newCodeInput, setNewCodeInput] = useState("");
@@ -233,6 +243,11 @@ export default function RulesPage() {
         fleet_split: data.fleet_split ?? false,
         fleet_split_method: data.fleet_split_method ?? "own",
         preset_template: data.preset_template ?? "custom",
+        stp_penalty_points: data.stp_penalty_points ?? 3,
+        scp_multiplier: data.scp_multiplier ?? 1.3,
+        arb_multiplier: data.arb_multiplier ?? 1.3,
+        prp_multiplier: data.prp_multiplier ?? 1.3,
+        zfp_multiplier: data.zfp_multiplier ?? 1.2,
       });
       setCustomCodes(
         data.custom_result_codes
@@ -272,6 +287,11 @@ export default function RulesPage() {
           fleet_split: form.fleet_split,
           fleet_split_method: form.fleet_split_method,
           preset_template: form.preset_template,
+          stp_penalty_points: Number(form.stp_penalty_points),
+          scp_multiplier: Number(form.scp_multiplier),
+          arb_multiplier: Number(form.arb_multiplier),
+          prp_multiplier: Number(form.prp_multiplier),
+          zfp_multiplier: Number(form.zfp_multiplier),
         }),
       });
       if (!res.ok) { setError("ルール保存に失敗しました"); return; }
@@ -312,9 +332,9 @@ export default function RulesPage() {
   ];
 
   const fixedRuleCodes = [
-    { code: "SCP", rule: "着順得点 × 130%（切り上げ）", hint: "Scoring Penalty" },
-    { code: "ZFP", rule: "着順得点 × 120%（切り上げ）", hint: "Zero Flag Penalty (規則30.2)" },
-    { code: "ARB", rule: "着順得点 × 130%（切り上げ）", hint: "Arbitration Penalty" },
+    { code: "SCP", rule: `着順得点 × ${form.scp_multiplier}（切り上げ）`, hint: "Scoring Penalty" },
+    { code: "ZFP", rule: `着順得点 × ${form.zfp_multiplier}（切り上げ）`, hint: "Zero Flag Penalty (規則30.2)" },
+    { code: "ARB", rule: `着順得点 × ${form.arb_multiplier}（切り上げ）`, hint: "Arbitration Penalty" },
     { code: "RDG", rule: "手動入力", hint: "Redress（裁定得点）" },
     { code: "DPI", rule: "手動入力", hint: "Discretionary Penalty（手動）" },
   ];
@@ -540,6 +560,55 @@ export default function RulesPage() {
                   <div style={{ fontSize: "12px", color: MUTED, marginTop: "2px" }}>実際の着順に1点を加えた得点を与える。関東女子学連で使用。</div>
                 </div>
               </label>
+            </div>
+          </div>
+
+          {/* ペナルティー係数設定 */}
+          <div style={{ ...CARD, marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "14px", fontWeight: "700", color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 0, marginBottom: "8px" }}>
+              ペナルティー係数
+            </h2>
+            <p style={{ fontSize: "12px", color: MUTED, marginBottom: "16px", marginTop: 0 }}>
+              各ペナルティコードの得点倍率を設定します。
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "2px" }}>STP 加算点数</label>
+                <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0 0 4px" }}>「着順＋加算」方式の場合のみ使用</p>
+                <input
+                  type="number" step="0.5" min="0"
+                  value={form.stp_penalty_points}
+                  onChange={(e) => updateField("stp_penalty_points", Number(e.target.value))}
+                  disabled={form.sp_method !== "add_one"}
+                  style={{ ...INPUT_STYLE, opacity: form.sp_method === "add_one" ? 1 : 0.5 }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "2px" }}>SCP 乗数</label>
+                <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0 0 4px" }}>Scoring Penalty</p>
+                <input type="number" step="0.01" min="1" value={form.scp_multiplier} onChange={(e) => updateField("scp_multiplier", Number(e.target.value))} style={INPUT_STYLE} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "2px" }}>ARB 乗数</label>
+                <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0 0 4px" }}>Arbitration Penalty</p>
+                <input type="number" step="0.01" min="1" value={form.arb_multiplier} onChange={(e) => updateField("arb_multiplier", Number(e.target.value))} style={INPUT_STYLE} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "2px" }}>PRP 乗数</label>
+                <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0 0 4px" }}>付則T — 有効の場合のみ使用</p>
+                <input
+                  type="number" step="0.01" min="1"
+                  value={form.prp_multiplier}
+                  onChange={(e) => updateField("prp_multiplier", Number(e.target.value))}
+                  disabled={!form.use_appendix_t}
+                  style={{ ...INPUT_STYLE, opacity: form.use_appendix_t ? 1 : 0.5 }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "2px" }}>ZFP 乗数</label>
+                <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0 0 4px" }}>Zero Flag Penalty（規則30.2）</p>
+                <input type="number" step="0.01" min="1" value={form.zfp_multiplier} onChange={(e) => updateField("zfp_multiplier", Number(e.target.value))} style={INPUT_STYLE} />
+              </div>
             </div>
           </div>
 
