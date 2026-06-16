@@ -1,0 +1,14 @@
+name: Keep Render backend awake
+
+on:
+  schedule:
+    # 10分おき。Renderの無料プランは約15分アイドルでスリープするため、その前に叩いて起こしておく。
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend
+        run: curl -fsS --max-time 60 https://sailing-score-app-backend.onrender.com/ || true

@@ -79,6 +79,7 @@ function getTemplateLabel(t: string) {
 export default function Home() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
+  const [waking, setWaking] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -108,14 +109,29 @@ export default function Home() {
   const [deleting, setDeleting] = useState(false);
 
   async function fetchTournaments() {
+    setLoading(true);
+    setWaking(false);
+    const wakeTimer = setTimeout(() => setWaking(true), 4000);
+    // サーバーがスリープしている場合の起動待ち。1回失敗したら長めのタイムアウトで再試行する。
+    const attemptTimeouts = [12000, 45000];
     try {
-      setLoading(true);
-      const res = await apiFetch(`/tournaments`);
-      if (!res.ok) throw new Error();
-      setTournaments(await res.json());
+      let lastErr: unknown;
+      for (const timeoutMs of attemptTimeouts) {
+        try {
+          const res = await apiFetch(`/tournaments`, { timeoutMs });
+          if (!res.ok) throw new Error();
+          setTournaments(await res.json());
+          return;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr;
     } catch {
       setError("大会一覧の取得に失敗しました");
     } finally {
+      clearTimeout(wakeTimer);
+      setWaking(false);
       setLoading(false);
     }
   }
@@ -366,7 +382,11 @@ export default function Home() {
 
       {/* 大会一覧 */}
       {loading ? (
-        <p style={{ color: MUTED }}>読み込み中...</p>
+        <p style={{ color: MUTED }}>
+          {waking
+            ? "サーバーを起動しています…初回は1分ほどかかることがあります"
+            : "読み込み中..."}
+        </p>
       ) : tournaments.length === 0 ? (
         <div style={{ ...CARD, textAlign: "center", padding: "48px", color: MUTED }}>
           <div style={{ fontSize: "32px", marginBottom: "12px" }}>⛵</div>
