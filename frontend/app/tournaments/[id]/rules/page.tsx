@@ -395,7 +395,7 @@ export default function RulesPage() {
             <h2 style={{ fontSize: "14px", fontWeight: "700", color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 0, marginBottom: "18px" }}>
               基本設定
             </h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+            <div className="grid-2" style={{ gap: "14px" }}>
               <div>
                 <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "6px" }}>予定レース数</label>
                 <input
@@ -468,7 +468,7 @@ export default function RulesPage() {
                 RRS推奨値を適用（予定{form.scheduled_races}R → {suggestDiscard(Number(form.scheduled_races)).count}カット）
               </button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+            <div className="grid-2" style={{ gap: "14px" }}>
               <div>
                 <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "6px" }}>カット開始レース数</label>
                 <input
@@ -572,7 +572,7 @@ export default function RulesPage() {
             <p style={{ fontSize: "12px", color: MUTED, marginBottom: "16px", marginTop: 0 }}>
               各ペナルティコードの得点倍率を設定します。
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+            <div className="grid-2" style={{ gap: "14px" }}>
               <div>
                 <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "2px" }}>STP 加算点数</label>
                 <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0 0 4px" }}>「着順＋加算」方式の場合のみ使用</p>
@@ -763,7 +763,7 @@ export default function RulesPage() {
             <p style={{ fontSize: "12px", color: MUTED, marginBottom: "18px", marginTop: 0 }}>
               STARTERS_PLUS_1: スタート艇数＋1　／　ENTRIES_PLUS_1: エントリー艇数＋1
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+            <div className="grid-2" style={{ gap: "14px" }}>
               {ruleFields.map(({ key, label, hint }) => (
                 <div key={key}>
                   <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "2px" }}>
@@ -789,7 +789,7 @@ export default function RulesPage() {
             <h2 style={{ fontSize: "14px", fontWeight: "700", color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 0, marginBottom: "18px" }}>
               特殊コード（RRSによる固定ルール）
             </h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <div className="grid-2" style={{ gap: "10px" }}>
               {/* STP — sp_method に依存 */}
               <div style={{ padding: "10px 12px", backgroundColor: "#f8fafc", borderRadius: "8px", border: `1px solid ${BORDER}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

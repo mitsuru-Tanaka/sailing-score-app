@@ -170,67 +170,7 @@ export default function RaceResultPage() {
           : [];
         setCustomCodes(customList);
 
-        const cls = parseClassConfig(tData.class_config);
-        const newSlots: Record<string, ClassSlot> = {};
-        if (cls.length === 0) {
-          newSlots["ALL"] = {
-            finish: boatsData.map(() => ({ boatId: null, sailInput: "", entryInput: "", codeInput: "", manualOverrideInput: "" })),
-            penalties: [],
-          };
-          setActiveClass("ALL");
-        } else {
-          for (const c of cls) {
-            const cb = boatsData.filter((b) => b.boat_class === c);
-            newSlots[c] = {
-              finish: cb.map(() => ({ boatId: null, sailInput: "", entryInput: "", codeInput: "", manualOverrideInput: "" })),
-              penalties: [],
-            };
-          }
-          setActiveClass((prev) => cls.includes(prev) ? prev : cls[0]);
-        }
-
-        resultsData.forEach((result: any) => {
-          const boat = boatsData.find((b) => b.id === result.boat_id);
-          if (!boat) return;
-          const targetClass = cls.length === 0 ? "ALL" : (boat.boat_class ?? cls[0]);
-          const s = newSlots[targetClass];
-          if (!s) return;
-          const FINISH_TABLE_CODES = new Set(["OK","DSQ","NSC","STP","SCP","ARB","PRP","ZFP","BFD","DNC","DNE","DNF","DNS","DPI","OCS","RDG","RET","UFD"]);
-          if (result.finish_position != null && FINISH_TABLE_CODES.has(result.result_code)) {
-            const idx = result.finish_position - 1;
-            if (idx >= 0 && idx < s.finish.length) {
-              s.finish[idx] = {
-                boatId: boat.id,
-                sailInput: boat.sail_number,
-                entryInput: boat.entry_number?.toString() ?? "",
-                codeInput: result.result_code === "OK" ? "" : result.result_code,
-                manualOverrideInput: "",
-              };
-            }
-          } else if (result.result_code !== "OK") {
-            s.penalties.push({
-              key: String(++penaltyKeyCounter),
-              boatId: boat.id,
-              resultCode: result.result_code,
-              finishPosition: result.finish_position?.toString() ?? "",
-              manualPoints: "",
-              note: result.note ?? "",
-            });
-          }
-        });
-        setClassSlots(newSlots);
-
-        setBoatRows(boatsData.map((boat) => {
-          const existing = resultsData.find((r: any) => r.boat_id === boat.id);
-          return {
-            boat_id: boat.id,
-            finish_position: existing?.finish_position?.toString() ?? "",
-            result_code:     existing?.result_code ?? "OK",
-            manual_points:   "",
-            note:            existing?.note ?? "",
-            points:          existing?.points ?? null,
-          };
-        }));
+        applyResults(tData, boatsData, resultsData);
 
         setLoading(false);
         return; // success
@@ -241,6 +181,80 @@ export default function RaceResultPage() {
         }
       }
     }
+  }
+
+  // resultsData から着順スロット・艇別行を再構築する（fetchAll と保存後の軽量更新で共用）
+  function applyResults(tData: Tournament, boatsData: Boat[], resultsData: any[]) {
+    const cls = parseClassConfig(tData.class_config);
+    const newSlots: Record<string, ClassSlot> = {};
+    if (cls.length === 0) {
+      newSlots["ALL"] = {
+        finish: boatsData.map(() => ({ boatId: null, sailInput: "", entryInput: "", codeInput: "", manualOverrideInput: "" })),
+        penalties: [],
+      };
+      setActiveClass("ALL");
+    } else {
+      for (const c of cls) {
+        const cb = boatsData.filter((b) => b.boat_class === c);
+        newSlots[c] = {
+          finish: cb.map(() => ({ boatId: null, sailInput: "", entryInput: "", codeInput: "", manualOverrideInput: "" })),
+          penalties: [],
+        };
+      }
+      setActiveClass((prev) => cls.includes(prev) ? prev : cls[0]);
+    }
+
+    resultsData.forEach((result: any) => {
+      const boat = boatsData.find((b) => b.id === result.boat_id);
+      if (!boat) return;
+      const targetClass = cls.length === 0 ? "ALL" : (boat.boat_class ?? cls[0]);
+      const s = newSlots[targetClass];
+      if (!s) return;
+      const FINISH_TABLE_CODES = new Set(["OK","DSQ","NSC","STP","SCP","ARB","PRP","ZFP","BFD","DNC","DNE","DNF","DNS","DPI","OCS","RDG","RET","UFD"]);
+      if (result.finish_position != null && FINISH_TABLE_CODES.has(result.result_code)) {
+        const idx = result.finish_position - 1;
+        if (idx >= 0 && idx < s.finish.length) {
+          s.finish[idx] = {
+            boatId: boat.id,
+            sailInput: boat.sail_number,
+            entryInput: boat.entry_number?.toString() ?? "",
+            codeInput: result.result_code === "OK" ? "" : result.result_code,
+            manualOverrideInput: "",
+          };
+        }
+      } else if (result.result_code !== "OK") {
+        s.penalties.push({
+          key: String(++penaltyKeyCounter),
+          boatId: boat.id,
+          resultCode: result.result_code,
+          finishPosition: result.finish_position?.toString() ?? "",
+          manualPoints: "",
+          note: result.note ?? "",
+        });
+      }
+    });
+    setClassSlots(newSlots);
+
+    setBoatRows(boatsData.map((boat) => {
+      const existing = resultsData.find((r: any) => r.boat_id === boat.id);
+      return {
+        boat_id: boat.id,
+        finish_position: existing?.finish_position?.toString() ?? "",
+        result_code:     existing?.result_code ?? "OK",
+        manual_points:   "",
+        note:            existing?.note ?? "",
+        points:          existing?.points ?? null,
+      };
+    }));
+  }
+
+  // 保存後の軽量リフレッシュ。大会情報・艇一覧は変わらないので結果のみ再取得する。
+  async function refetchResults() {
+    if (!tournament) return;
+    const res = await apiFetch(`/races/${raceId}/results`, { timeoutMs: 15000 });
+    if (!res.ok) throw new Error("レース結果の取得に失敗しました");
+    const resultsData: any[] = await res.json();
+    applyResults(tournament, boats, resultsData);
   }
 
   useEffect(() => { fetchAll(); }, [tournamentId, raceId]);
@@ -368,7 +382,7 @@ export default function RaceResultPage() {
       });
       if (!res.ok) { setError("結果保存に失敗しました"); return; }
       setMessage("結果を保存しました");
-      await fetchAll();
+      await refetchResults();
     } finally {
       setSaving(false);
     }
@@ -434,7 +448,7 @@ export default function RaceResultPage() {
       });
       if (!res.ok) { setError("結果保存に失敗しました"); return; }
       setMessage("結果を保存しました");
-      await fetchAll();
+      await refetchResults();
     } finally {
       setSaving(false);
     }

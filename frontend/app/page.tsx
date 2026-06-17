@@ -1,7 +1,7 @@
 "use client";
 
 import { T } from "@/lib/theme";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiErrorMessage, ApiError } from "@/lib/api";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -105,6 +105,7 @@ export default function Home() {
   const [eventTemplate, setEventTemplate] = useState("INDIVIDUAL");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -122,14 +123,17 @@ export default function Home() {
           const res = await apiFetch(`/tournaments`, { timeoutMs });
           if (!res.ok) throw new Error();
           setTournaments(await res.json());
+          setError("");
           return;
         } catch (e) {
           lastErr = e;
+          // 認証エラーは再試行しても無駄なので即座に中断
+          if (e instanceof ApiError && e.kind === "auth") break;
         }
       }
       throw lastErr;
-    } catch {
-      setError("大会一覧の取得に失敗しました");
+    } catch (e) {
+      setError(apiErrorMessage(e, "大会一覧の取得に失敗しました"));
     } finally {
       clearTimeout(wakeTimer);
       setWaking(false);
@@ -153,8 +157,8 @@ export default function Home() {
       const res = await apiFetch("/tournaments/trash");
       if (!res.ok) throw new Error();
       setTrashTournaments(await res.json());
-    } catch {
-      setError("ゴミ箱の取得に失敗しました");
+    } catch (e) {
+      setError(apiErrorMessage(e, "ゴミ箱の取得に失敗しました"));
     } finally {
       setTrashLoading(false);
     }
@@ -168,6 +172,12 @@ export default function Home() {
   useEffect(() => {
     if (showTrash) fetchTrash();
   }, [showTrash]);
+
+  function showToast(msg: string) {
+    setError("");
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  }
 
   function buildClassConfig() {
     const items: string[] = [];
@@ -200,8 +210,9 @@ export default function Home() {
       setUseOtherClass(false); setOtherClassName("");
       setShowForm(false);
       await fetchTournaments();
-    } catch {
-      setError("大会作成に失敗しました");
+      showToast("大会を作成しました");
+    } catch (e) {
+      setError(apiErrorMessage(e, "大会作成に失敗しました"));
     } finally {
       setSubmitting(false);
     }
@@ -213,8 +224,9 @@ export default function Home() {
       const res = await apiFetch(`/tournaments/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       setTournaments(prev => prev.filter(t => t.id !== id));
-    } catch {
-      setError("ゴミ箱への移動に失敗しました");
+      showToast("ゴミ箱へ移動しました");
+    } catch (e) {
+      setError(apiErrorMessage(e, "ゴミ箱への移動に失敗しました"));
     } finally {
       setDeleting(false);
       setDeleteConfirmId(null);
@@ -228,8 +240,9 @@ export default function Home() {
       if (!res.ok) throw new Error();
       setTrashTournaments(prev => prev.filter(t => t.id !== id));
       await fetchTournaments();
-    } catch {
-      setError("復元に失敗しました");
+      showToast("大会を復元しました");
+    } catch (e) {
+      setError(apiErrorMessage(e, "復元に失敗しました"));
     } finally {
       setRestoring(null);
     }
@@ -241,8 +254,9 @@ export default function Home() {
       const res = await apiFetch(`/tournaments/${id}/permanent`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       setTrashTournaments(prev => prev.filter(t => t.id !== id));
-    } catch {
-      setError("完全削除に失敗しました");
+      showToast("完全に削除しました");
+    } catch (e) {
+      setError(apiErrorMessage(e, "完全削除に失敗しました"));
     } finally {
       setPermanentDeleting(false);
       setPermanentDeleteId(null);
@@ -258,6 +272,52 @@ export default function Home() {
 
   return (
     <main style={{ padding: "32px 24px", maxWidth: "1100px", margin: "0 auto" }}>
+      {/* 成功トースト */}
+      {toast && (
+        <div style={{
+          position: "fixed",
+          top: "72px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 200,
+          backgroundColor: T.accent2,
+          color: T.white,
+          padding: "10px 20px",
+          borderRadius: "10px",
+          fontSize: "14px",
+          fontWeight: "600",
+          boxShadow: "0 6px 24px rgba(0,0,0,0.5)",
+        }}>
+          ✓ {toast}
+        </div>
+      )}
+
+      {/* グローバルエラー表示 */}
+      {error && !showForm && (
+        <div style={{
+          marginBottom: "20px",
+          padding: "12px 16px",
+          backgroundColor: "rgba(220,38,38,0.15)",
+          border: "1px solid rgba(220,38,38,0.4)",
+          borderRadius: "10px",
+          color: "#fca5a5",
+          fontSize: "14px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "12px",
+        }}>
+          <span>{error}</span>
+          <button
+            onClick={() => setError("")}
+            style={{ background: "none", border: "none", color: "#fca5a5", cursor: "pointer", fontSize: "16px" }}
+            aria-label="閉じる"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ヘッダー */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
         <h1 style={{ fontSize: "22px", fontWeight: "700", color: TEXT, margin: 0 }}>大会一覧</h1>
@@ -296,7 +356,7 @@ export default function Home() {
             新規大会作成
           </h2>
           <form onSubmit={handleSubmit}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+            <div className="grid-2" style={{ gap: "12px", marginBottom: "12px" }}>
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "4px" }}>大会名 *</label>
                 <input value={name} onChange={e => setName(e.target.value)} placeholder="例: 2026年春季インカレ" style={INPUT_STYLE} />

@@ -1,8 +1,8 @@
 "use client";
 
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch, API_BASE, apiErrorMessage } from "@/lib/api";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import TournamentNav from "../../../components/TournamentNav";
 
@@ -517,9 +517,17 @@ export default function StandingsPage() {
   const [v2Response, setV2Response] = useState<StandingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  // 前回のリクエストが完了する前に次のポーリングが走らないようにするガード
+  const inFlight = useRef(false);
 
   const fetchData = useCallback(async () => {
     if (!id) return;
+    if (inFlight.current) return; // 多重リクエスト防止（スリープ時のリクエスト積み上がりを防ぐ）
+    inFlight.current = true;
+    setRefreshing(true);
     try {
       const tRes = await apiFetch(`/tournaments/${id}`, { timeoutMs: 45000 });
       if (!tRes.ok) throw new Error("大会情報の取得に失敗しました");
@@ -536,18 +544,23 @@ export default function StandingsPage() {
         setV2Response(await sRes.json());
       }
       setError("");
+      setLastUpdated(new Date());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "データ取得に失敗しました");
+      setError(apiErrorMessage(err, "データ取得に失敗しました"));
     } finally {
+      inFlight.current = false;
+      setRefreshing(false);
       setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 3000);
+    if (!autoRefresh) return;
+    // 15秒間隔。レース中継として十分な鮮度を保ちつつ、サーバー負荷とスリープ時の積み上がりを抑える。
+    const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, autoRefresh]);
 
   if (loading) {
     return <main style={{ padding: "24px" }}><p>読み込み中...</p></main>;
@@ -591,7 +604,54 @@ export default function StandingsPage() {
         <h1 style={{ fontSize: "22px", fontWeight: "700", color: TEXT_COLOR, margin: 0 }}>
           総合順位
         </h1>
-        <div className="no-print" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        <div className="no-print" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+          {/* 更新ステータス */}
+          <span style={{ fontSize: "12px", color: error ? "#dc2626" : MUTED_COLOR, whiteSpace: "nowrap" }}>
+            {refreshing
+              ? "更新中…"
+              : error
+              ? `⚠ 更新失敗${lastUpdated ? `（${lastUpdated.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}時点を表示中）` : ""}`
+              : lastUpdated
+              ? `最終更新 ${lastUpdated.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+              : ""}
+          </span>
+          {/* 手動リロード */}
+          <button
+            onClick={fetchData}
+            disabled={refreshing}
+            title="今すぐ更新"
+            style={{
+              padding: "9px 14px",
+              backgroundColor: WHITE,
+              color: TEXT_COLOR,
+              border: `1px solid ${BORDER_COLOR}`,
+              borderRadius: "8px",
+              cursor: refreshing ? "not-allowed" : "pointer",
+              fontSize: "14px",
+              fontWeight: "600",
+              opacity: refreshing ? 0.6 : 1,
+            }}
+          >
+            🔄 更新
+          </button>
+          {/* 自動更新トグル */}
+          <button
+            onClick={() => setAutoRefresh((v) => !v)}
+            title="自動更新の切り替え"
+            style={{
+              padding: "9px 14px",
+              backgroundColor: autoRefresh ? "#0e6657" : WHITE,
+              color: autoRefresh ? WHITE : MUTED_COLOR,
+              border: `1px solid ${autoRefresh ? "#0e6657" : BORDER_COLOR}`,
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontSize: "13px",
+              fontWeight: "600",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {autoRefresh ? "自動更新 ON" : "自動更新 OFF"}
+          </button>
           <button
             onClick={async () => {
               const res = await apiFetch(`/tournaments/${id}/export/pdf`);

@@ -161,7 +161,7 @@ export default function RacesPage() {
           <div style={{ ...CARD, marginBottom: "28px" }}>
             <h2 style={{ fontSize: "16px", fontWeight: "700", marginTop: 0, marginBottom: "20px", color: TEXT }}>新規レース追加</h2>
             <form onSubmit={handleAddRace}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+              <div className="grid-2" style={{ gap: "12px", marginBottom: "16px" }}>
                 <div>
                   <label style={LBL}>レース番号 *</label>
                   <input type="number" value={raceNumber} onChange={e => setRaceNumber(e.target.value)} placeholder="例: 1" style={INPUT} />

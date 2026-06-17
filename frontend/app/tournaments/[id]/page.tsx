@@ -416,7 +416,7 @@ export default function TournamentDetailPage() {
                   <label style={labelStyle}>大会名 *</label>
                   <input value={editName} onChange={e => setEditName(e.target.value)} style={INPUT_STYLE} required />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div className="grid-2" style={{ gap: "12px" }}>
                   <div>
                     <label style={labelStyle}>略称</label>
                     <input value={editShortName} onChange={e => setEditShortName(e.target.value)} style={INPUT_STYLE} placeholder="例: 春イン" />

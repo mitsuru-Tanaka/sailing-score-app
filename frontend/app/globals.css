@@ -34,6 +34,23 @@ body {
   box-sizing: border-box;
 }
 
+/* 横スクロール防止（モバイルでフォームがはみ出すのを防ぐ） */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* 2カラムグリッド：狭い画面では1カラムに折り返す */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 640px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;

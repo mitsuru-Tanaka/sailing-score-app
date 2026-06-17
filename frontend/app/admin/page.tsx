@@ -154,7 +154,7 @@ export default function AdminPage() {
           ユーザーを招待
         </h2>
         <form onSubmit={handleInvite}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "16px" }}>
+          <div className="grid-2" style={{ gap: "14px", marginBottom: "16px" }}>
             <div style={{ gridColumn: "1 / -1" }}>
               <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: MUTED, marginBottom: "6px" }}>
                 メールアドレス *

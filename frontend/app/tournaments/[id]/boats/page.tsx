@@ -961,7 +961,7 @@ export default function BoatsPage() {
             </p>
 
             <form onSubmit={handleEditSave}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+              <div className="grid-2" style={{ gap: "12px", marginBottom: "16px" }}>
                 {EDIT_FIELDS.map(({ key, label }) => (
                   <div key={key}>
                     <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: MUTED, marginBottom: "4px" }}>
