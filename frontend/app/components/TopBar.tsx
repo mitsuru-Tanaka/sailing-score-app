@@ -109,6 +109,20 @@ export default function TopBar() {
       {email && (
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <Link
+            href="/help"
+            style={{
+              color: T.muted,
+              textDecoration: "none",
+              fontSize: "13px",
+              fontWeight: "500",
+              padding: "4px 8px",
+              borderRadius: "6px",
+            }}
+          >
+            ヘルプ
+          </Link>
+
+          <Link
             href="/admin"
             style={{
               color: T.muted,
