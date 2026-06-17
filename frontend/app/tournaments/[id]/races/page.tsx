@@ -1,5 +1,6 @@
 "use client";
 
+import { T } from "@/lib/theme";
 import { apiFetch, API_BASE } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -21,11 +22,11 @@ type Race = {
   finish_time_last?: string | null;
 };
 
-const NAV    = "#1F4E78";
-const BORDER = "#e2e8f0";
-const WHITE  = "#ffffff";
-const TEXT   = "#1a2332";
-const MUTED  = "#64748b";
+const NAV    = T.accent;
+const BORDER = T.border;
+const WHITE  = T.white;
+const TEXT   = T.text;
+const MUTED  = T.muted;
 const INPUT: React.CSSProperties = {
   padding: "7px 10px",
   border: `1px solid ${BORDER}`,
@@ -33,15 +34,15 @@ const INPUT: React.CSSProperties = {
   fontSize: "13px",
   width: "100%",
   outline: "none",
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   boxSizing: "border-box",
 };
 const CARD: React.CSSProperties = {
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   border: `1px solid ${BORDER}`,
   borderRadius: "12px",
   padding: "24px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
 };
 const LBL: React.CSSProperties = {
   display: "block", fontSize: "11px", fontWeight: "600", color: MUTED, marginBottom: "3px",
@@ -180,7 +181,7 @@ export default function RacesPage() {
                   {submitting ? "追加中..." : "レースを追加"}
                 </button>
                 <button type="button" onClick={() => setShowAddForm(false)} style={{
-                  padding: "10px 16px", backgroundColor: WHITE, color: MUTED,
+                  padding: "10px 16px", backgroundColor: T.surface, color: MUTED,
                   border: `1px solid ${BORDER}`, borderRadius: "8px", cursor: "pointer", fontSize: "14px",
                 }}>
                   キャンセル

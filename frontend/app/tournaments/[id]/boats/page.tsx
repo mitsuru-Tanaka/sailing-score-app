@@ -1,5 +1,6 @@
 "use client";
 
+import { T } from "@/lib/theme";
 import { apiFetch, API_BASE } from "@/lib/api";
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
@@ -114,11 +115,11 @@ function parseClassConfig(cfg: string | null | undefined): string[] {
   );
 }
 
-const NAV    = "#1F4E78";
-const BORDER = "#e2e8f0";
-const WHITE  = "#ffffff";
-const TEXT   = "#1a2332";
-const MUTED  = "#64748b";
+const NAV    = T.accent;
+const BORDER = T.border;
+const WHITE  = T.white;
+const TEXT   = T.text;
+const MUTED  = T.muted;
 const CELL: React.CSSProperties = {
   padding: "4px 6px",
   border: `1px solid ${BORDER}`,
@@ -131,15 +132,15 @@ const INPUT: React.CSSProperties = {
   borderRadius: "4px",
   fontSize: "12px",
   outline: "none",
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   boxSizing: "border-box",
 };
 const CARD: React.CSSProperties = {
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   border: `1px solid ${BORDER}`,
   borderRadius: "12px",
   padding: "20px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
 };
 const MODAL_INPUT: React.CSSProperties = {
   padding: "9px 10px",
@@ -148,7 +149,7 @@ const MODAL_INPUT: React.CSSProperties = {
   fontSize: "13px",
   width: "100%",
   outline: "none",
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   boxSizing: "border-box",
 };
 
@@ -625,7 +626,7 @@ export default function BoatsPage() {
                 style={{
                   padding: "6px 12px", fontSize: "12px", fontWeight: "600",
                   border: `1px solid ${BORDER}`, borderRadius: "6px",
-                  backgroundColor: WHITE, color: NAV, cursor: "pointer",
+                  backgroundColor: T.surface, color: NAV, cursor: "pointer",
                 }}
               >
                 テンプレートCSV
@@ -711,7 +712,7 @@ export default function BoatsPage() {
               style={{
                 padding: "7px 14px", fontSize: "13px", fontWeight: "600",
                 border: `1px solid ${BORDER}`, borderRadius: "6px",
-                backgroundColor: WHITE, color: TEXT, cursor: "pointer",
+                backgroundColor: T.surface, color: TEXT, cursor: "pointer",
               }}
             >
               + 行を追加
@@ -940,7 +941,7 @@ export default function BoatsPage() {
           onClick={(e) => { if (e.target === e.currentTarget) closeEditModal(); }}
         >
           <div style={{
-            backgroundColor: WHITE, borderRadius: "14px",
+            backgroundColor: T.surface, borderRadius: "14px",
             padding: "28px", width: "100%", maxWidth: "560px",
             maxHeight: "90vh", overflowY: "auto",
             boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
@@ -1020,7 +1021,7 @@ export default function BoatsPage() {
           onClick={(e) => { if (e.target === e.currentTarget) { setDeletingBoatId(null); setDeleteError(""); } }}
         >
           <div style={{
-            backgroundColor: WHITE, borderRadius: "14px",
+            backgroundColor: T.surface, borderRadius: "14px",
             padding: "28px 32px", width: "100%", maxWidth: "400px",
             boxShadow: "0 20px 60px rgba(0,0,0,0.25)", textAlign: "center",
           }}>

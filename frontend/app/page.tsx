@@ -1,5 +1,6 @@
 "use client";
 
+import { T } from "@/lib/theme";
 import { apiFetch } from "@/lib/api";
 
 import Link from "next/link";
@@ -21,11 +22,11 @@ type Tournament = {
   deleted_at?: string | null;
 };
 
-const NAV = "#1F4E78";
-const BORDER = "#e2e8f0";
-const WHITE = "#ffffff";
-const TEXT = "#1a2332";
-const MUTED = "#64748b";
+const NAV    = T.accent;
+const BORDER = T.border;
+const WHITE  = T.white;
+const TEXT   = T.text;
+const MUTED  = T.muted;
 const INPUT_STYLE: React.CSSProperties = {
   padding: "10px 12px",
   border: `1px solid ${BORDER}`,
@@ -33,14 +34,14 @@ const INPUT_STYLE: React.CSSProperties = {
   fontSize: "14px",
   width: "100%",
   outline: "none",
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
 };
 const CARD: React.CSSProperties = {
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   border: `1px solid ${BORDER}`,
   borderRadius: "12px",
   padding: "24px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
 };
 
 function Badge({ children, variant = "navy" }: { children: string; variant?: "navy" | "teal" | "gray" }) {
@@ -370,7 +371,7 @@ export default function Home() {
                 {submitting ? "作成中..." : "大会を作成"}
               </button>
               <button type="button" onClick={() => setShowForm(false)} style={{
-                padding: "10px 16px", backgroundColor: WHITE, color: MUTED,
+                padding: "10px 16px", backgroundColor: T.surface, color: MUTED,
                 border: `1px solid ${BORDER}`, borderRadius: "8px", cursor: "pointer", fontSize: "14px",
               }}>
                 キャンセル
@@ -437,7 +438,7 @@ export default function Home() {
                     onClick={() => setDeleteConfirmId(t.id)}
                     title="ゴミ箱に移動"
                     style={{
-                      padding: "6px 10px", backgroundColor: WHITE, color: "#dc2626",
+                      padding: "6px 10px", backgroundColor: T.surface, color: "#dc2626",
                       border: "1px solid #fecaca", borderRadius: "6px",
                       cursor: "pointer", fontSize: "16px", lineHeight: 1,
                     }}
@@ -457,7 +458,7 @@ export default function Home() {
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
         }}>
           <div style={{
-            backgroundColor: WHITE, borderRadius: "12px", padding: "28px 32px",
+            backgroundColor: T.surface, borderRadius: "12px", padding: "28px 32px",
             maxWidth: "400px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
           }}>
             <div style={{ fontSize: "18px", fontWeight: "700", color: TEXT, marginBottom: "10px" }}>
@@ -472,7 +473,7 @@ export default function Home() {
                 onClick={() => setDeleteConfirmId(null)}
                 disabled={deleting}
                 style={{
-                  padding: "9px 18px", backgroundColor: WHITE, color: MUTED,
+                  padding: "9px 18px", backgroundColor: T.surface, color: MUTED,
                   border: `1px solid ${BORDER}`, borderRadius: "8px",
                   cursor: "pointer", fontSize: "14px",
                 }}
@@ -531,7 +532,7 @@ export default function Home() {
                       onClick={() => handleRestore(t.id)}
                       disabled={restoring === t.id}
                       style={{
-                        padding: "7px 16px", backgroundColor: WHITE, color: NAV,
+                        padding: "7px 16px", backgroundColor: T.surface, color: NAV,
                         border: `1px solid ${NAV}`, borderRadius: "6px",
                         cursor: restoring === t.id ? "not-allowed" : "pointer",
                         fontSize: "13px", fontWeight: "600",
@@ -565,7 +566,7 @@ export default function Home() {
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
         }}>
           <div style={{
-            backgroundColor: WHITE, borderRadius: "12px", padding: "28px 32px",
+            backgroundColor: T.surface, borderRadius: "12px", padding: "28px 32px",
             maxWidth: "400px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
           }}>
             <div style={{ fontSize: "18px", fontWeight: "700", color: TEXT, marginBottom: "10px" }}>
@@ -582,7 +583,7 @@ export default function Home() {
                 onClick={() => setPermanentDeleteId(null)}
                 disabled={permanentDeleting}
                 style={{
-                  padding: "9px 18px", backgroundColor: WHITE, color: MUTED,
+                  padding: "9px 18px", backgroundColor: T.surface, color: MUTED,
                   border: `1px solid ${BORDER}`, borderRadius: "8px",
                   cursor: "pointer", fontSize: "14px",
                 }}

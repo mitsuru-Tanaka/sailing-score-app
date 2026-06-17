@@ -1,5 +1,6 @@
 "use client";
 
+import { T } from "@/lib/theme";
 import { apiFetch } from "@/lib/api";
 
 import { useEffect, useState } from "react";
@@ -110,11 +111,11 @@ const PRESETS: Record<Exclude<PresetKey, "custom">, { label: string; description
 
 const ruleOptions = ["STARTERS_PLUS_1", "ENTRIES_PLUS_1"];
 
-const NAV    = "#1F4E78";
-const BORDER = "#e2e8f0";
-const WHITE  = "#ffffff";
-const TEXT   = "#1a2332";
-const MUTED  = "#64748b";
+const NAV    = T.accent;
+const BORDER = T.border;
+const WHITE  = T.white;
+const TEXT   = T.text;
+const MUTED  = T.muted;
 const INPUT_STYLE: React.CSSProperties = {
   padding: "10px 12px",
   border: `1px solid ${BORDER}`,
@@ -122,14 +123,14 @@ const INPUT_STYLE: React.CSSProperties = {
   fontSize: "14px",
   width: "100%",
   outline: "none",
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
 };
 const CARD: React.CSSProperties = {
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   border: `1px solid ${BORDER}`,
   borderRadius: "12px",
   padding: "24px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
 };
 
 function suggestDiscard(scheduledRaces: number): { count: number; startAt: number } {

@@ -1,5 +1,6 @@
 "use client";
 
+import { T } from "@/lib/theme";
 import { apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -69,17 +70,17 @@ const MANUAL_CODES     = new Set(["RDG", "DPI"]);
 const ROW1_CODES = ["BFD", "DNC", "DNF", "DNS", "DNE", "NSC", "OCS", "RET", "UFD"] as const;
 const ROW2_CODES = ["ARB", "DPI", "DSQ", "PRP", "RDG", "SCP", "STP", "ZFP"] as const;
 
-const NAV    = "#1F4E78";
-const BORDER = "#e2e8f0";
-const WHITE  = "#ffffff";
-const TEXT   = "#1a2332";
-const MUTED  = "#64748b";
+const NAV    = T.accent;
+const BORDER = T.border;
+const WHITE  = T.white;
+const TEXT   = T.text;
+const MUTED  = T.muted;
 const CARD: React.CSSProperties = {
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   border: `1px solid ${BORDER}`,
   borderRadius: "12px",
   padding: "20px 24px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
 };
 
 let penaltyKeyCounter = 0;
@@ -482,7 +483,7 @@ export default function RaceResultPage() {
     fontSize: "14px",
     width: w ?? "80px",
     outline: "none",
-    backgroundColor: WHITE,
+    backgroundColor: T.surface,
   });
 
   const handleSave = activeTab === "finish" ? handleSaveFinish : handleSaveBoat;

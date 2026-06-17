@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import TournamentNav from "../../components/TournamentNav";
+import { T } from "@/lib/theme";
 import { apiFetch } from "@/lib/api";
 
 type Tournament = {
@@ -33,11 +34,11 @@ type Me = {
   role: string;
 };
 
-const NAV    = "#1F4E78";
-const BORDER = "#e2e8f0";
-const WHITE  = "#ffffff";
-const TEXT   = "#1a2332";
-const MUTED  = "#64748b";
+const NAV    = T.accent;
+const BORDER = T.border;
+const WHITE  = T.white;
+const TEXT   = T.text;
+const MUTED  = T.muted;
 const INPUT_STYLE: React.CSSProperties = {
   padding: "10px 12px",
   border: `1px solid ${BORDER}`,
@@ -45,15 +46,15 @@ const INPUT_STYLE: React.CSSProperties = {
   fontSize: "14px",
   width: "100%",
   outline: "none",
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   boxSizing: "border-box",
 };
 const CARD: React.CSSProperties = {
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   border: `1px solid ${BORDER}`,
   borderRadius: "12px",
   padding: "24px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
 };
 
 const ACTIONS = [
@@ -259,7 +260,7 @@ export default function TournamentDetailPage() {
                 style={{
                   padding: "7px 16px", fontSize: "13px", fontWeight: "600",
                   border: `1px solid ${BORDER}`, borderRadius: "8px",
-                  backgroundColor: WHITE, color: NAV, cursor: "pointer",
+                  backgroundColor: T.surface, color: NAV, cursor: "pointer",
                   whiteSpace: "nowrap", flexShrink: 0,
                 }}
               >
@@ -395,7 +396,7 @@ export default function TournamentDetailPage() {
           }}
         >
           <div style={{
-            backgroundColor: WHITE, borderRadius: "16px", padding: "32px",
+            backgroundColor: T.surface, borderRadius: "16px", padding: "32px",
             width: "100%", maxWidth: "560px", maxHeight: "90vh",
             overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
           }}>
@@ -481,7 +482,7 @@ export default function TournamentDetailPage() {
                   type="button"
                   onClick={() => setShowEdit(false)}
                   style={{
-                    padding: "10px 18px", backgroundColor: WHITE, color: MUTED,
+                    padding: "10px 18px", backgroundColor: T.surface, color: MUTED,
                     border: `1px solid ${BORDER}`, borderRadius: "8px", cursor: "pointer", fontSize: "14px",
                   }}
                 >

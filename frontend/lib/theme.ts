@@ -1,3 +1,5 @@
+import type React from "react";
+
 export const T = {
   bg:       "#0d1117",
   surface:  "#161c2c",

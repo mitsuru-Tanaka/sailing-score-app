@@ -1,14 +1,15 @@
 "use client";
+import { T } from "@/lib/theme";
 
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 
-const NAV    = "#1F4E78";
-const BORDER = "#e2e8f0";
-const WHITE  = "#ffffff";
-const TEXT   = "#1a2332";
-const MUTED  = "#64748b";
+const NAV    = T.accent;
+const BORDER = T.border;
+const WHITE  = T.white;
+const TEXT   = T.text;
+const MUTED  = T.muted;
 const INPUT_STYLE: React.CSSProperties = {
   padding: "11px 14px",
   border: `1px solid ${BORDER}`,
@@ -16,7 +17,7 @@ const INPUT_STYLE: React.CSSProperties = {
   fontSize: "15px",
   width: "100%",
   outline: "none",
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   boxSizing: "border-box",
 };
 
@@ -59,7 +60,7 @@ export default function SignupPage() {
         justifyContent: "center", backgroundColor: "#f8f9fa", padding: "24px",
       }}>
         <div style={{
-          width: "100%", maxWidth: "400px", backgroundColor: WHITE,
+          width: "100%", maxWidth: "400px", backgroundColor: T.surface,
           border: `1px solid ${BORDER}`, borderRadius: "16px", padding: "40px",
           boxShadow: "0 4px 24px rgba(0,0,0,0.08)", textAlign: "center",
         }}>
@@ -89,7 +90,7 @@ export default function SignupPage() {
       justifyContent: "center", backgroundColor: "#f8f9fa", padding: "24px",
     }}>
       <div style={{
-        width: "100%", maxWidth: "400px", backgroundColor: WHITE,
+        width: "100%", maxWidth: "400px", backgroundColor: T.surface,
         border: `1px solid ${BORDER}`, borderRadius: "16px", padding: "40px",
         boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
       }}>
