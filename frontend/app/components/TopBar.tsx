@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { T } from "@/lib/theme";
 
-const NAV  = "#1F4E78";
-const WHITE = "#ffffff";
 const IS_LOCAL = process.env.NEXT_PUBLIC_MODE === "local";
 
 export default function TopBar() {
@@ -22,12 +21,10 @@ export default function TopBar() {
       setDisplayName((user?.user_metadata?.display_name as string | undefined) ?? null);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_, session) => {
-        setEmail(session?.user?.email ?? null);
-        setDisplayName((session?.user?.user_metadata?.display_name as string | undefined) ?? null);
-      }
-    );
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setEmail(session?.user?.email ?? null);
+      setDisplayName((session?.user?.user_metadata?.display_name as string | undefined) ?? null);
+    });
 
     return () => subscription.unsubscribe();
   }, []);
@@ -39,106 +36,141 @@ export default function TopBar() {
     router.refresh();
   }
 
+  const initial = (displayName || email || "?")[0].toUpperCase();
+
   return (
     <header
       className="no-print"
       style={{
-        backgroundColor: NAV,
-        color: WHITE,
+        backgroundColor: T.surface,
+        color: T.text,
         padding: "0 24px",
-        height: "52px",
+        height: "56px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+        borderBottom: `2px solid ${T.accent}`,
         position: "sticky",
         top: 0,
         zIndex: 100,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      {/* ロゴ */}
+      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
         <Link
           href="/"
           style={{
-            color: WHITE,
+            color: T.text,
             textDecoration: "none",
-            fontWeight: "700",
-            fontSize: "17px",
-            letterSpacing: "0.02em",
+            fontWeight: "800",
+            fontSize: "16px",
+            letterSpacing: "0.04em",
             display: "flex",
             alignItems: "center",
             gap: "8px",
           }}
         >
-          ⛵ セーリング得点管理
+          <span style={{ color: T.accent, fontSize: "20px" }}>⛵</span>
+          <span>SAILING</span>
+          <span style={{ color: T.muted, fontWeight: "400" }}>SCORE</span>
         </Link>
+
         {IS_LOCAL ? (
           <span style={{
-            backgroundColor: "#ea580c",
-            color: WHITE,
-            fontSize: "11px",
+            backgroundColor: T.accent,
+            color: T.white,
+            fontSize: "10px",
             fontWeight: "700",
             padding: "2px 8px",
             borderRadius: "4px",
-            letterSpacing: "0.04em",
-            whiteSpace: "nowrap",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
           }}>
-            ローカルモード
+            LOCAL
           </span>
         ) : (
           <span style={{
-            backgroundColor: "rgba(255,255,255,0.12)",
-            color: "rgba(255,255,255,0.65)",
-            fontSize: "11px",
+            backgroundColor: "transparent",
+            color: T.muted,
+            fontSize: "10px",
             fontWeight: "600",
             padding: "2px 8px",
             borderRadius: "4px",
-            letterSpacing: "0.04em",
-            whiteSpace: "nowrap",
+            border: `1px solid ${T.border}`,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
           }}>
-            クラウドモード
+            CLOUD
           </span>
         )}
       </div>
 
+      {/* ユーザーエリア */}
       {email && (
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <Link
             href="/admin"
             style={{
-              color: "rgba(255,255,255,0.75)",
+              color: T.muted,
               textDecoration: "none",
               fontSize: "13px",
               fontWeight: "500",
+              padding: "4px 8px",
+              borderRadius: "6px",
+              transition: "color 0.15s",
             }}
           >
             管理
           </Link>
+
           <Link
             href="/account"
             style={{
-              color: "rgba(255,255,255,0.85)",
-              fontSize: "13px",
-              maxWidth: "200px",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
               textDecoration: "none",
             }}
           >
-            {displayName || email}
+            <span style={{
+              width: "30px",
+              height: "30px",
+              borderRadius: "50%",
+              backgroundColor: T.accent,
+              color: T.white,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: "700",
+              fontSize: "13px",
+              flexShrink: 0,
+            }}>
+              {initial}
+            </span>
+            <span style={{
+              color: T.text,
+              fontSize: "13px",
+              maxWidth: "160px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}>
+              {displayName || email}
+            </span>
           </Link>
+
           <button
             onClick={handleLogout}
             style={{
               padding: "5px 12px",
-              backgroundColor: "rgba(255,255,255,0.12)",
-              color: WHITE,
-              border: "1px solid rgba(255,255,255,0.25)",
+              backgroundColor: "transparent",
+              color: T.muted,
+              border: `1px solid ${T.border}`,
               borderRadius: "6px",
               cursor: "pointer",
               fontSize: "12px",
               fontWeight: "600",
+              letterSpacing: "0.02em",
             }}
           >
             ログアウト

@@ -521,17 +521,17 @@ export default function StandingsPage() {
   const fetchData = useCallback(async () => {
     if (!id) return;
     try {
-      const tRes = await apiFetch(`/tournaments/${id}`);
+      const tRes = await apiFetch(`/tournaments/${id}`, { timeoutMs: 45000 });
       if (!tRes.ok) throw new Error("大会情報の取得に失敗しました");
       const t: Tournament = await tRes.json();
       setTournament(t);
 
       if (t.event_template === "TEAM_3_BOATS") {
-        const sRes = await apiFetch(`/tournaments/${id}/standings-v3`);
+        const sRes = await apiFetch(`/tournaments/${id}/standings-v3`, { timeoutMs: 45000 });
         if (!sRes.ok) throw new Error("順位の取得に失敗しました");
         setV3Response(await sRes.json());
       } else {
-        const sRes = await apiFetch(`/tournaments/${id}/standings-v2`);
+        const sRes = await apiFetch(`/tournaments/${id}/standings-v2`, { timeoutMs: 45000 });
         if (!sRes.ok) throw new Error("順位の取得に失敗しました");
         setV2Response(await sRes.json());
       }

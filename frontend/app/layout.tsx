@@ -25,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ja" className={`${geistSans.variable} ${geistMono.variable}`}>
       <head>
-        <meta name="theme-color" content="#1F4E78" />
+        <meta name="theme-color" content="#0d1117" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body style={{ minHeight: "100vh", display: "flex", flexDirection: "column", margin: 0 }}>
