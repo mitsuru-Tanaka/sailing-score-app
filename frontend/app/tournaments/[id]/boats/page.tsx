@@ -655,11 +655,11 @@ export default function BoatsPage() {
           </div>
 
           {csvResult && (
-            <p style={{ fontSize: "13px", color: "#0e6657", fontWeight: "600", marginBottom: "8px" }}>
+            <p style={{ fontSize: "13px", color: "#5eead4", fontWeight: "600", marginBottom: "8px" }}>
               {csvResult.imported} 件登録（重複は上書き）、{csvResult.skipped} 件スキップ
             </p>
           )}
-          {csvError && <p style={{ fontSize: "13px", color: "#dc2626", marginBottom: "8px" }}>{csvError}</p>}
+          {csvError && <p style={{ fontSize: "13px", color: "#fca5a5", marginBottom: "8px" }}>{csvError}</p>}
 
           <div style={{ overflowX: "auto" }}>
             <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
@@ -667,7 +667,7 @@ export default function BoatsPage() {
                 {COL_WIDTHS.map((w, i) => <col key={i} style={{ width: w }} />)}
               </colgroup>
               <thead>
-                <tr style={{ backgroundColor: "#f1f5f9" }}>
+                <tr style={{ backgroundColor: T.surface2 }}>
                   {HEADERS.map((h, i) => (
                     <th key={i} style={{ ...CELL, fontWeight: "600", fontSize: "11px", color: MUTED, whiteSpace: "nowrap", textAlign: "left" }}>
                       {h}
@@ -737,11 +737,11 @@ export default function BoatsPage() {
                   {submitResult.skipped > 0 ? `、${submitResult.skipped} 件失敗` : ""}
                 </span>
                 {submitResult.errors.map((err, i) => (
-                  <div key={i} style={{ fontSize: "12px", color: "#dc2626", marginTop: "2px" }}>{err}</div>
+                  <div key={i} style={{ fontSize: "12px", color: "#fca5a5", marginTop: "2px" }}>{err}</div>
                 ))}
               </div>
             )}
-            {submitError && <span style={{ fontSize: "13px", color: "#dc2626" }}>{submitError}</span>}
+            {submitError && <span style={{ fontSize: "13px", color: "#fca5a5" }}>{submitError}</span>}
           </div>
         </div>
 
@@ -767,13 +767,13 @@ export default function BoatsPage() {
                 {editMode ? (
                   <>
                     {bulkError && (
-                      <span style={{ fontSize: "12px", color: "#dc2626", alignSelf: "center" }}>{bulkError}</span>
+                      <span style={{ fontSize: "12px", color: "#fca5a5", alignSelf: "center" }}>{bulkError}</span>
                     )}
                     <button
                       onClick={cancelEditMode}
                       style={{
                         padding: "6px 16px", fontSize: "13px", fontWeight: "600",
-                        backgroundColor: "#f1f5f9", color: TEXT,
+                        backgroundColor: T.surface2, color: TEXT,
                         border: `1px solid ${BORDER}`, borderRadius: "6px", cursor: "pointer",
                       }}
                     >
@@ -798,7 +798,7 @@ export default function BoatsPage() {
                     onClick={openEditMode}
                     style={{
                       padding: "6px 16px", fontSize: "13px", fontWeight: "600",
-                      backgroundColor: "#eef2f7", color: NAV,
+                      backgroundColor: T.surface2, color: NAV,
                       border: `1px solid #c7d7e8`, borderRadius: "6px", cursor: "pointer",
                     }}
                   >
@@ -819,7 +819,7 @@ export default function BoatsPage() {
                     {COL_WIDTHS.map((w, i) => <col key={i} style={{ width: w }} />)}
                   </colgroup>
                   <thead>
-                    <tr style={{ backgroundColor: "#f1f5f9" }}>
+                    <tr style={{ backgroundColor: T.surface2 }}>
                       {HEADERS.map((h, i) => (
                         <th key={i} style={{ ...CELL, fontWeight: "600", fontSize: "11px", color: MUTED, whiteSpace: "nowrap", textAlign: "left" }}>
                           {h}
@@ -829,7 +829,7 @@ export default function BoatsPage() {
                   </thead>
                   <tbody>
                     {editRows.map((row, rowIdx) => (
-                      <tr key={rowIdx} style={{ backgroundColor: rowIdx % 2 === 0 ? WHITE : "#fafbfc" }}>
+                      <tr key={rowIdx} style={{ backgroundColor: rowIdx % 2 === 0 ? T.surface : T.surface2 }}>
                         {FIELDS.map((field, colIdx) => (
                           <td key={field} style={CELL}>
                             <input
@@ -848,7 +848,7 @@ export default function BoatsPage() {
                         <td style={CELL}>
                           <button
                             onClick={() => deleteEditRow(rowIdx)}
-                            style={{ border: "none", background: "none", cursor: "pointer", color: "#dc2626", fontSize: "14px", padding: "2px 4px" }}
+                            style={{ border: "none", background: "none", cursor: "pointer", color: "#fca5a5", fontSize: "14px", padding: "2px 4px" }}
                             title="行を削除"
                           >×</button>
                         </td>
@@ -878,7 +878,7 @@ export default function BoatsPage() {
                   </thead>
                   <tbody>
                     {displayBoats.map((boat, i) => (
-                      <tr key={boat.id} style={{ backgroundColor: i % 2 === 0 ? WHITE : "#fafbfc" }}>
+                      <tr key={boat.id} style={{ backgroundColor: i % 2 === 0 ? T.surface : T.surface2 }}>
                         <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, color: MUTED }}>{boat.entry_number ?? "-"}</td>
                         <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}` }}>{boat.boat_number || "-"}</td>
                         <td style={{ padding: "9px 12px", borderBottom: `1px solid ${BORDER}`, fontWeight: "600" }}>{boat.sail_number || "-"}</td>
@@ -900,7 +900,7 @@ export default function BoatsPage() {
                             onClick={() => openEditModal(boat)}
                             style={{
                               padding: "4px 10px", fontSize: "11px", fontWeight: "600",
-                              backgroundColor: "#eef2f7", color: NAV,
+                              backgroundColor: T.surface2, color: NAV,
                               border: `1px solid #c7d7e8`, borderRadius: "5px",
                               cursor: "pointer", marginRight: "4px",
                             }}
@@ -911,7 +911,7 @@ export default function BoatsPage() {
                             onClick={() => { setDeletingBoatId(boat.id); setDeleteError(""); }}
                             style={{
                               padding: "4px 10px", fontSize: "11px", fontWeight: "600",
-                              backgroundColor: "#fef2f2", color: "#dc2626",
+                              backgroundColor: "rgba(220,38,38,0.15)", color: "#fca5a5",
                               border: "1px solid #fecaca", borderRadius: "5px",
                               cursor: "pointer",
                             }}
@@ -977,7 +977,7 @@ export default function BoatsPage() {
                 ))}
               </div>
 
-              {editError && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px" }}>{editError}</p>}
+              {editError && <p style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "12px" }}>{editError}</p>}
 
               <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
                 <button
@@ -985,7 +985,7 @@ export default function BoatsPage() {
                   onClick={closeEditModal}
                   style={{
                     padding: "9px 20px", fontSize: "13px", fontWeight: "600",
-                    backgroundColor: "#f1f5f9", color: TEXT,
+                    backgroundColor: T.surface2, color: TEXT,
                     border: `1px solid ${BORDER}`, borderRadius: "8px", cursor: "pointer",
                   }}
                 >
@@ -1035,16 +1035,16 @@ export default function BoatsPage() {
                 return b?.sail_number || (b?.entry_number ? `Entry No.${b.entry_number}` : "");
               })()} の登録データを削除します。
             </p>
-            <p style={{ fontSize: "12px", color: "#dc2626", marginBottom: "20px" }}>
+            <p style={{ fontSize: "12px", color: "#fca5a5", marginBottom: "20px" }}>
               紐づくレース結果もすべて削除されます。この操作は元に戻せません。
             </p>
-            {deleteError && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px" }}>{deleteError}</p>}
+            {deleteError && <p style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "12px" }}>{deleteError}</p>}
             <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
               <button
                 onClick={() => { setDeletingBoatId(null); setDeleteError(""); }}
                 style={{
                   padding: "9px 22px", fontSize: "13px", fontWeight: "600",
-                  backgroundColor: "#f1f5f9", color: TEXT,
+                  backgroundColor: T.surface2, color: TEXT,
                   border: `1px solid ${BORDER}`, borderRadius: "8px", cursor: "pointer",
                 }}
               >

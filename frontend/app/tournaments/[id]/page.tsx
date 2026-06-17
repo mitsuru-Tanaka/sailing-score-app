@@ -219,7 +219,7 @@ export default function TournamentDetailPage() {
       <>
         <TournamentNav id={id ?? ""} name="" />
         <main style={{ padding: "32px 24px" }}>
-          <p style={{ color: "#dc2626" }}>大会情報の取得に失敗しました</p>
+          <p style={{ color: "#fca5a5" }}>大会情報の取得に失敗しました</p>
         </main>
       </>
     );
@@ -337,14 +337,14 @@ export default function TournamentDetailPage() {
                   {addLoading ? "追加中..." : "追加"}
                 </button>
               </div>
-              {addError   && <p style={{ color: "#dc2626", fontSize: "13px", marginTop: "8px", marginBottom: 0 }}>{addError}</p>}
-              {addMessage && <p style={{ color: "#0e6657", fontSize: "13px", marginTop: "8px", marginBottom: 0 }}>{addMessage}</p>}
+              {addError   && <p style={{ color: "#fca5a5", fontSize: "13px", marginTop: "8px", marginBottom: 0 }}>{addError}</p>}
+              {addMessage && <p style={{ color: "#5eead4", fontSize: "13px", marginTop: "8px", marginBottom: 0 }}>{addMessage}</p>}
             </form>
 
             {members.length > 0 && (
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
                 <thead>
-                  <tr style={{ backgroundColor: "#f8f9fa" }}>
+                  <tr style={{ backgroundColor: T.surface2 }}>
                     {["メールアドレス", "権限"].map((h) => (
                       <th key={h} style={{
                         padding: "9px 14px", textAlign: "left",
@@ -369,7 +369,7 @@ export default function TournamentDetailPage() {
                         <span style={{
                           display: "inline-block", padding: "2px 8px", borderRadius: "999px",
                           fontSize: "11px", fontWeight: "600",
-                          backgroundColor: m.role === "owner" ? "#eef2f7" : "#f0fdf9",
+                          backgroundColor: m.role === "owner" ? T.surface2 : "rgba(34,197,94,0.15)",
                           color: m.role === "owner" ? NAV : "#0e6657",
                         }}>
                           {m.role === "owner" ? "オーナー" : "編集者"}
@@ -464,7 +464,7 @@ export default function TournamentDetailPage() {
                 </div>
               </div>
 
-              {editError && <p style={{ color: "#dc2626", fontSize: "13px", marginTop: "12px", marginBottom: 0 }}>{editError}</p>}
+              {editError && <p style={{ color: "#fca5a5", fontSize: "13px", marginTop: "12px", marginBottom: 0 }}>{editError}</p>}
 
               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
                 <button

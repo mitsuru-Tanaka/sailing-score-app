@@ -50,11 +50,11 @@ const LBL: React.CSSProperties = {
 
 function statusBadge(status: string) {
   const map: Record<string, { bg: string; color: string; label: string }> = {
-    DRAFT:     { bg: "#f1f5f9", color: "#475569", label: "下書き" },
-    FINISHED:  { bg: "#f0fdf9", color: "#0e6657", label: "完了" },
+    DRAFT:     { bg: T.surface2, color: T.muted, label: "下書き" },
+    FINISHED:  { bg: "rgba(34,197,94,0.15)", color: "#5eead4", label: "完了" },
     CANCELLED: { bg: "#fef2f2", color: "#991b1b", label: "中止" },
   };
-  const s = map[status] ?? { bg: "#f1f5f9", color: "#475569", label: status };
+  const s = map[status] ?? { bg: T.surface2, color: T.muted, label: status };
   return (
     <span style={{
       display: "inline-block", padding: "2px 8px", borderRadius: "999px",
@@ -171,7 +171,7 @@ export default function RacesPage() {
                   <input type="text" value={raceName} onChange={e => setRaceName(e.target.value)} placeholder="例: 第1レース" style={INPUT} />
                 </div>
               </div>
-              {error && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px" }}>{error}</p>}
+              {error && <p style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "12px" }}>{error}</p>}
               <div style={{ display: "flex", gap: "10px" }}>
                 <button type="submit" disabled={submitting} style={{
                   padding: "10px 24px", backgroundColor: NAV, color: WHITE,
@@ -205,7 +205,7 @@ export default function RacesPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
                     <div style={{
                       width: "40px", height: "40px", borderRadius: "8px",
-                      backgroundColor: "#eef2f7", color: NAV,
+                      backgroundColor: T.surface2, color: NAV,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontWeight: "700", fontSize: "16px", flexShrink: 0,
                     }}>
@@ -224,7 +224,7 @@ export default function RacesPage() {
                       style={{
                         padding: "7px 14px", fontSize: "13px", fontWeight: "600",
                         border: `1px solid ${BORDER}`, borderRadius: "6px",
-                        backgroundColor: expandedId === race.id ? "#eef2f7" : WHITE,
+                        backgroundColor: expandedId === race.id ? T.surface2 : WHITE,
                         color: NAV, cursor: "pointer",
                       }}
                     >

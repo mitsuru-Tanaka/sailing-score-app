@@ -377,7 +377,7 @@ export default function RulesPage() {
                       padding: "12px",
                       border: `2px solid ${selected ? NAV : BORDER}`,
                       borderRadius: "10px",
-                      backgroundColor: selected ? "#eef2f7" : WHITE,
+                      backgroundColor: selected ? T.surface2 : WHITE,
                       cursor: "pointer",
                       textAlign: "left",
                     }}
@@ -458,7 +458,7 @@ export default function RulesPage() {
                   padding: "7px 14px",
                   border: `1px solid #4472a8`,
                   borderRadius: "7px",
-                  backgroundColor: "#eef2f7",
+                  backgroundColor: T.surface2,
                   color: NAV,
                   cursor: "pointer",
                   fontSize: "13px",
@@ -791,10 +791,10 @@ export default function RulesPage() {
             </h2>
             <div className="grid-2" style={{ gap: "10px" }}>
               {/* STP — sp_method に依存 */}
-              <div style={{ padding: "10px 12px", backgroundColor: "#f8fafc", borderRadius: "8px", border: `1px solid ${BORDER}` }}>
+              <div style={{ padding: "10px 12px", backgroundColor: T.surface2, borderRadius: "8px", border: `1px solid ${BORDER}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontWeight: "700", fontSize: "13px", color: NAV }}>STP</span>
-                  <span style={{ fontSize: "11px", backgroundColor: "#dbeafe", color: "#1d4ed8", padding: "2px 6px", borderRadius: "4px" }}>設定による</span>
+                  <span style={{ fontSize: "11px", backgroundColor: "rgba(37,99,235,0.22)", color: "#93c5fd", padding: "2px 6px", borderRadius: "4px" }}>設定による</span>
                 </div>
                 <p style={{ fontSize: "11px", color: MUTED, margin: "4px 0 0" }}>Scoring Time Penalty</p>
                 <p style={{ fontSize: "11px", color: TEXT, margin: "2px 0 0", fontWeight: "600" }}>
@@ -802,10 +802,10 @@ export default function RulesPage() {
                 </p>
               </div>
               {/* PRP — use_appendix_t に依存 */}
-              <div style={{ padding: "10px 12px", backgroundColor: "#f8fafc", borderRadius: "8px", border: `1px solid ${BORDER}` }}>
+              <div style={{ padding: "10px 12px", backgroundColor: T.surface2, borderRadius: "8px", border: `1px solid ${BORDER}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontWeight: "700", fontSize: "13px", color: form.use_appendix_t ? NAV : "#94a3b8" }}>PRP</span>
-                  <span style={{ fontSize: "11px", backgroundColor: form.use_appendix_t ? "#e2e8f0" : "#fee2e2", color: form.use_appendix_t ? MUTED : "#dc2626", padding: "2px 6px", borderRadius: "4px" }}>
+                  <span style={{ fontSize: "11px", backgroundColor: form.use_appendix_t ? T.surface2 : "rgba(220,38,38,0.15)", color: form.use_appendix_t ? MUTED : "#dc2626", padding: "2px 6px", borderRadius: "4px" }}>
                     {form.use_appendix_t ? "有効" : "無効"}
                   </span>
                 </div>
@@ -815,10 +815,10 @@ export default function RulesPage() {
                 </p>
               </div>
               {fixedRuleCodes.map(({ code, rule, hint }) => (
-                <div key={code} style={{ padding: "10px 12px", backgroundColor: "#f8fafc", borderRadius: "8px", border: `1px solid ${BORDER}` }}>
+                <div key={code} style={{ padding: "10px 12px", backgroundColor: T.surface2, borderRadius: "8px", border: `1px solid ${BORDER}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontWeight: "700", fontSize: "13px", color: NAV }}>{code}</span>
-                    <span style={{ fontSize: "11px", backgroundColor: "#e2e8f0", color: MUTED, padding: "2px 6px", borderRadius: "4px" }}>固定</span>
+                    <span style={{ fontSize: "11px", backgroundColor: T.surface2, color: MUTED, padding: "2px 6px", borderRadius: "4px" }}>固定</span>
                   </div>
                   <p style={{ fontSize: "11px", color: MUTED, margin: "4px 0 0" }}>{hint}</p>
                   <p style={{ fontSize: "11px", color: TEXT, margin: "2px 0 0", fontWeight: "600" }}>{rule}</p>
@@ -980,7 +980,7 @@ export default function RulesPage() {
             {customCodes.length > 0 && (
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
                 {customCodes.map((code) => (
-                  <div key={code} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 10px", backgroundColor: "#eef2f7", borderRadius: "20px", fontSize: "13px", fontWeight: "600", color: NAV }}>
+                  <div key={code} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 10px", backgroundColor: T.surface2, borderRadius: "20px", fontSize: "13px", fontWeight: "600", color: NAV }}>
                     {code}
                     <button
                       type="button"
@@ -1006,7 +1006,7 @@ export default function RulesPage() {
                 type="button"
                 onClick={addCustomCode}
                 style={{
-                  padding: "10px 16px", backgroundColor: "#f1f5f9", color: TEXT,
+                  padding: "10px 16px", backgroundColor: T.surface2, color: TEXT,
                   border: `1px solid ${BORDER}`, borderRadius: "8px",
                   cursor: "pointer", fontSize: "13px", fontWeight: "600", whiteSpace: "nowrap",
                 }}
@@ -1016,8 +1016,8 @@ export default function RulesPage() {
             </div>
           </div>
 
-          {error   && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "16px" }}>{error}</p>}
-          {message && <p style={{ color: "#0e6657", fontSize: "13px", marginBottom: "16px" }}>{message}</p>}
+          {error   && <p style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "16px" }}>{error}</p>}
+          {message && <p style={{ color: "#5eead4", fontSize: "13px", marginBottom: "16px" }}>{message}</p>}
 
           <button
             type="submit"

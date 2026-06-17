@@ -46,9 +46,9 @@ const CARD: React.CSSProperties = {
 
 function Badge({ children, variant = "navy" }: { children: string; variant?: "navy" | "teal" | "gray" }) {
   const map = {
-    navy: { bg: "#eef2f7", color: NAV },
-    teal: { bg: "#f0fdf9", color: "#0e6657" },
-    gray: { bg: "#f1f5f9", color: "#475569" },
+    navy: { bg: T.surface2, color: NAV },
+    teal: { bg: "rgba(34,197,94,0.15)", color: "#5eead4" },
+    gray: { bg: T.surface2, color: T.muted },
   };
   const s = map[variant];
   return (
@@ -327,9 +327,9 @@ export default function Home() {
             title="ゴミ箱"
             style={{
               padding: "9px 14px",
-              backgroundColor: showTrash ? "#fef2f2" : WHITE,
-              color: showTrash ? "#dc2626" : MUTED,
-              border: `1px solid ${showTrash ? "#fecaca" : BORDER}`,
+              backgroundColor: showTrash ? "rgba(220,38,38,0.15)" : T.surface,
+              color: showTrash ? "#fca5a5" : MUTED,
+              border: `1px solid ${showTrash ? "rgba(220,38,38,0.4)" : BORDER}`,
               borderRadius: "8px", cursor: "pointer", fontSize: "18px",
             }}
           >
@@ -419,7 +419,7 @@ export default function Home() {
                 style={{ ...INPUT_STYLE, minHeight: "72px", resize: "vertical" }} />
             </div>
 
-            {error && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px" }}>{error}</p>}
+            {error && <p style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "12px" }}>{error}</p>}
 
             <div style={{ display: "flex", gap: "10px" }}>
               <button type="submit" disabled={submitting} style={{
@@ -498,7 +498,7 @@ export default function Home() {
                     onClick={() => setDeleteConfirmId(t.id)}
                     title="ゴミ箱に移動"
                     style={{
-                      padding: "6px 10px", backgroundColor: T.surface, color: "#dc2626",
+                      padding: "6px 10px", backgroundColor: T.surface, color: "#fca5a5",
                       border: "1px solid #fecaca", borderRadius: "6px",
                       cursor: "pointer", fontSize: "16px", lineHeight: 1,
                     }}
@@ -562,7 +562,7 @@ export default function Home() {
       {showTrash && (
         <div style={{ marginTop: "40px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-            <h2 style={{ fontSize: "18px", fontWeight: "700", color: "#dc2626", margin: 0 }}>🗑️ ゴミ箱</h2>
+            <h2 style={{ fontSize: "18px", fontWeight: "700", color: "#fca5a5", margin: 0 }}>🗑️ ゴミ箱</h2>
             {trashTournaments.length > 0 && (
               <span style={{ fontSize: "13px", color: MUTED }}>{trashTournaments.length}件</span>
             )}
@@ -604,7 +604,7 @@ export default function Home() {
                     <button
                       onClick={() => setPermanentDeleteId(t.id)}
                       style={{
-                        padding: "7px 16px", backgroundColor: "#fef2f2", color: "#dc2626",
+                        padding: "7px 16px", backgroundColor: "rgba(220,38,38,0.15)", color: "#fca5a5",
                         border: "1px solid #fecaca", borderRadius: "6px",
                         cursor: "pointer", fontSize: "13px", fontWeight: "600",
                       }}
@@ -632,7 +632,7 @@ export default function Home() {
             <div style={{ fontSize: "18px", fontWeight: "700", color: TEXT, marginBottom: "10px" }}>
               完全に削除しますか？
             </div>
-            <div style={{ fontSize: "14px", color: "#dc2626", marginBottom: "8px", fontWeight: "600" }}>
+            <div style={{ fontSize: "14px", color: "#fca5a5", marginBottom: "8px", fontWeight: "600" }}>
               この操作は取り消せません。
             </div>
             <div style={{ fontSize: "13px", color: MUTED, marginBottom: "24px" }}>

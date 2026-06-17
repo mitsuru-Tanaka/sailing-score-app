@@ -1,4 +1,5 @@
 "use client";
+import { T } from "@/lib/theme";
 
 import { useEffect, useState } from "react";
 import { apiFetch, API_BASE } from "@/lib/api";
@@ -15,11 +16,11 @@ type Tournament = {
   name: string;
 };
 
-const NAV    = "#1F4E78";
-const BORDER = "#e2e8f0";
-const WHITE  = "#ffffff";
-const TEXT   = "#1a2332";
-const MUTED  = "#64748b";
+const NAV    = T.accent;
+const BORDER = T.border;
+const WHITE  = T.white;
+const TEXT   = T.text;
+const MUTED  = T.muted;
 const INPUT_STYLE: React.CSSProperties = {
   padding: "10px 12px",
   border: `1px solid ${BORDER}`,
@@ -27,11 +28,11 @@ const INPUT_STYLE: React.CSSProperties = {
   fontSize: "14px",
   width: "100%",
   outline: "none",
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   boxSizing: "border-box",
 };
 const CARD: React.CSSProperties = {
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   border: `1px solid ${BORDER}`,
   borderRadius: "12px",
   padding: "24px",
@@ -133,7 +134,7 @@ export default function AdminPage() {
   if (error) {
     return (
       <main style={{ padding: "32px 24px", maxWidth: "600px", margin: "0 auto" }}>
-        <div style={{ ...CARD, color: "#dc2626", textAlign: "center", padding: "48px" }}>
+        <div style={{ ...CARD, color: "#fca5a5", textAlign: "center", padding: "48px" }}>
           <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔒</div>
           <p style={{ margin: 0 }}>{error}</p>
         </div>
@@ -198,7 +199,7 @@ export default function AdminPage() {
                       padding: "6px 12px",
                       border: `1px solid ${inviteTournamentIds.includes(t.id) ? NAV : BORDER}`,
                       borderRadius: "8px",
-                      backgroundColor: inviteTournamentIds.includes(t.id) ? "#eef2f7" : WHITE,
+                      backgroundColor: inviteTournamentIds.includes(t.id) ? T.surface2 : WHITE,
                     }}
                   >
                     <input
@@ -213,8 +214,8 @@ export default function AdminPage() {
             </div>
           )}
 
-          {inviteError   && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px" }}>{inviteError}</p>}
-          {inviteMessage && <p style={{ color: "#0e6657", fontSize: "13px", marginBottom: "12px" }}>{inviteMessage}</p>}
+          {inviteError   && <p style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "12px" }}>{inviteError}</p>}
+          {inviteMessage && <p style={{ color: "#5eead4", fontSize: "13px", marginBottom: "12px" }}>{inviteMessage}</p>}
 
           <button
             type="submit"
@@ -255,7 +256,7 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {users.map((u, i) => (
-                <tr key={u.id} style={{ backgroundColor: i % 2 === 0 ? WHITE : "#fafbfc" }}>
+                <tr key={u.id} style={{ backgroundColor: i % 2 === 0 ? T.surface : T.surface2 }}>
                   <td style={{ padding: "11px 16px", borderBottom: `1px solid ${BORDER}` }}>
                     {u.email}
                     {u.id === me?.id && (
@@ -266,7 +267,7 @@ export default function AdminPage() {
                     <span style={{
                       display: "inline-block", padding: "2px 8px", borderRadius: "999px",
                       fontSize: "11px", fontWeight: "600",
-                      backgroundColor: u.role === "admin" ? "#eef2f7" : "#f0fdf9",
+                      backgroundColor: u.role === "admin" ? T.surface2 : "rgba(34,197,94,0.15)",
                       color: u.role === "admin" ? NAV : "#0e6657",
                     }}>
                       {u.role}
@@ -286,7 +287,7 @@ export default function AdminPage() {
                           border: `1px solid ${BORDER}`,
                           borderRadius: "6px",
                           cursor: "pointer",
-                          backgroundColor: WHITE,
+                          backgroundColor: T.surface,
                           color: u.role === "admin" ? "#dc2626" : NAV,
                         }}
                       >

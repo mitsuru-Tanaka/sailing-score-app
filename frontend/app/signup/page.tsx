@@ -57,7 +57,7 @@ export default function SignupPage() {
     return (
       <main style={{
         minHeight: "100vh", display: "flex", alignItems: "center",
-        justifyContent: "center", backgroundColor: "#f8f9fa", padding: "24px",
+        justifyContent: "center", backgroundColor: T.surface2, padding: "24px",
       }}>
         <div style={{
           width: "100%", maxWidth: "400px", backgroundColor: T.surface,
@@ -87,7 +87,7 @@ export default function SignupPage() {
   return (
     <main style={{
       minHeight: "100vh", display: "flex", alignItems: "center",
-      justifyContent: "center", backgroundColor: "#f8f9fa", padding: "24px",
+      justifyContent: "center", backgroundColor: T.surface2, padding: "24px",
     }}>
       <div style={{
         width: "100%", maxWidth: "400px", backgroundColor: T.surface,
@@ -136,8 +136,8 @@ export default function SignupPage() {
 
           {error && (
             <p style={{
-              color: "#dc2626", fontSize: "13px", marginBottom: "16px",
-              padding: "10px 14px", backgroundColor: "#fef2f2",
+              color: "#fca5a5", fontSize: "13px", marginBottom: "16px",
+              padding: "10px 14px", backgroundColor: "rgba(220,38,38,0.15)",
               borderRadius: "8px", border: "1px solid #fecaca",
             }}>
               {error}

@@ -457,7 +457,7 @@ export default function RaceResultPage() {
   // ---- style helpers ----
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: "8px 20px",
-    backgroundColor: active ? NAV : WHITE,
+    backgroundColor: active ? NAV : T.surface2,
     color: active ? WHITE : MUTED,
     border: `1px solid ${active ? NAV : BORDER}`,
     borderRadius: "6px",
@@ -468,7 +468,7 @@ export default function RaceResultPage() {
 
   const classBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: "6px 18px",
-    backgroundColor: active ? NAV : "#f1f5f9",
+    backgroundColor: active ? NAV : T.surface2,
     color: active ? WHITE : TEXT,
     border: `1px solid ${active ? NAV : BORDER}`,
     borderRadius: "6px 6px 0 0",
@@ -480,7 +480,7 @@ export default function RaceResultPage() {
 
   const codeBtn = (active: boolean): React.CSSProperties => ({
     padding: "4px 8px",
-    backgroundColor: active ? NAV : "#f1f5f9",
+    backgroundColor: active ? NAV : T.surface2,
     color: active ? WHITE : MUTED,
     border: `1px solid ${active ? NAV : BORDER}`,
     borderRadius: "5px",
@@ -588,7 +588,7 @@ export default function RaceResultPage() {
               {race ? (race.name || `第${race.race_number}レース`) : "レース結果入力"}
             </h1>
             {race && (
-              <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "999px", fontSize: "11px", fontWeight: "600", backgroundColor: "#f1f5f9", color: MUTED }}>
+              <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "999px", fontSize: "11px", fontWeight: "600", backgroundColor: T.surface2, color: MUTED }}>
                 {race.status === "DRAFT" ? "下書き" : race.status === "FINISHED" ? "完了" : race.status}
               </span>
             )}
@@ -608,8 +608,8 @@ export default function RaceResultPage() {
           <button style={tabBtnStyle(activeTab === "boat")}   onClick={() => setActiveTab("boat")}>艇別入力</button>
         </div>
 
-        {error   && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px", ...CARD, padding: "12px 16px" }}>{error}</p>}
-        {message && <p style={{ color: "#0e6657", fontSize: "13px", marginBottom: "12px", ...CARD, padding: "12px 16px" }}>{message}</p>}
+        {error   && <p style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "12px", ...CARD, padding: "12px 16px" }}>{error}</p>}
+        {message && <p style={{ color: "#5eead4", fontSize: "13px", marginBottom: "12px", ...CARD, padding: "12px 16px" }}>{message}</p>}
 
         {loading ? (
           <p style={{ color: MUTED }}>読み込み中...</p>
@@ -667,7 +667,7 @@ export default function RaceResultPage() {
                     {finishRows.map((row, i) => {
                       const boat = row.boatId !== null ? boats.find((b) => b.id === row.boatId) : undefined;
                       return (
-                        <tr key={i} style={{ backgroundColor: i % 2 === 0 ? WHITE : "#fafbfc" }}>
+                        <tr key={i} style={{ backgroundColor: i % 2 === 0 ? T.surface : T.surface2 }}>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, fontWeight: "700", color: NAV, width: "52px" }}>
                             {i + 1}
                           </td>
@@ -683,7 +683,7 @@ export default function RaceResultPage() {
                               style={{ ...inpStyle("110px"), borderColor: finishRowErrors[i] ? "#dc2626" : "#94adc8" }}
                             />
                             {finishRowErrors[i] && (
-                              <div style={{ color: "#dc2626", fontSize: "10px", marginTop: "2px" }}>{finishRowErrors[i]}</div>
+                              <div style={{ color: "#fca5a5", fontSize: "10px", marginTop: "2px" }}>{finishRowErrors[i]}</div>
                             )}
                           </td>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}` }}>
@@ -703,7 +703,7 @@ export default function RaceResultPage() {
                             <select
                               value={row.codeInput}
                               onChange={(e) => updateFinishRow(i, "codeInput", e.target.value)}
-                              style={{ padding: "5px 6px", border: `1px solid ${row.codeInput ? "#f59e0b" : "#94adc8"}`, borderRadius: "6px", fontSize: "12px", fontWeight: row.codeInput ? "700" : "400", color: row.codeInput ? "#92400e" : TEXT, backgroundColor: row.codeInput ? "#fef3c7" : WHITE, cursor: "pointer", width: "76px" }}
+                              style={{ padding: "5px 6px", border: `1px solid ${row.codeInput ? "#f59e0b" : "#94adc8"}`, borderRadius: "6px", fontSize: "12px", fontWeight: row.codeInput ? "700" : "400", color: row.codeInput ? "#92400e" : TEXT, backgroundColor: row.codeInput ? "rgba(245,158,11,0.18)" : T.surface2, cursor: "pointer", width: "76px" }}
                             >
                               <option value="">—</option>
                               <option value="ARB">ARB</option>
@@ -731,7 +731,7 @@ export default function RaceResultPage() {
                               value={row.manualOverrideInput}
                               onChange={(e) => updateFinishRow(i, "manualOverrideInput", e.target.value)}
                               placeholder="—"
-                              style={{ ...inpStyle("64px"), backgroundColor: row.manualOverrideInput ? "#fef3c7" : WHITE, borderColor: row.manualOverrideInput ? "#f59e0b" : "#94adc8" }}
+                              style={{ ...inpStyle("64px"), backgroundColor: row.manualOverrideInput ? "rgba(245,158,11,0.18)" : T.surface2, borderColor: row.manualOverrideInput ? "#f59e0b" : "#94adc8" }}
                             />
                           </td>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}`, color: boat ? TEXT : MUTED, fontSize: "13px" }}>
@@ -757,7 +757,7 @@ export default function RaceResultPage() {
                 </h2>
                 <button
                   onClick={addPenaltyEntry}
-                  style={{ padding: "6px 14px", backgroundColor: "#f1f5f9", color: TEXT, border: `1px solid ${BORDER}`, borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}
+                  style={{ padding: "6px 14px", backgroundColor: T.surface2, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}
                 >
                   + 艇を追加
                 </button>
@@ -772,14 +772,14 @@ export default function RaceResultPage() {
                     const isManual  = MANUAL_CODES.has(entry.resultCode);
                     const entryBoat = entry.boatId ? boats.find((b) => b.id === entry.boatId) : undefined;
                     return (
-                      <div key={entry.key} style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px", backgroundColor: "#f8fafc", borderRadius: "8px", border: `1px solid ${BORDER}`, flexWrap: "wrap" }}>
+                      <div key={entry.key} style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "12px", backgroundColor: T.surface2, borderRadius: "8px", border: `1px solid ${BORDER}`, flexWrap: "wrap" }}>
                         {/* Boat selector — filtered by active class, excludes already-used boats */}
                         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                           <span style={{ fontSize: "11px", color: MUTED, fontWeight: "600" }}>艇</span>
                           <select
                             value={entry.boatId ?? ""}
                             onChange={(e) => updatePenaltyEntry(entry.key, { boatId: e.target.value ? Number(e.target.value) : null })}
-                            style={{ padding: "6px 8px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "13px", outline: "none", minWidth: "200px", backgroundColor: WHITE }}
+                            style={{ padding: "6px 8px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "13px", outline: "none", minWidth: "200px", backgroundColor: T.surface2 }}
                           >
                             <option value="">艇を選択...</option>
                             {activeBoats
@@ -815,7 +815,7 @@ export default function RaceResultPage() {
                           {customCodes.length > 0 && (
                             <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                               {customCodes.map((code) => (
-                                <button key={code} type="button" onClick={() => updatePenaltyEntry(entry.key, { resultCode: code })} style={{ ...codeBtn(entry.resultCode === code), backgroundColor: entry.resultCode === code ? "#7c3aed" : "#f5f3ff", borderColor: entry.resultCode === code ? "#7c3aed" : "#c4b5fd", color: entry.resultCode === code ? WHITE : "#7c3aed" }}>{code}</button>
+                                <button key={code} type="button" onClick={() => updatePenaltyEntry(entry.key, { resultCode: code })} style={{ ...codeBtn(entry.resultCode === code), backgroundColor: entry.resultCode === code ? "#7c3aed" : "rgba(124,58,237,0.20)", borderColor: entry.resultCode === code ? "#7c3aed" : "#c4b5fd", color: entry.resultCode === code ? WHITE : "#7c3aed" }}>{code}</button>
                               ))}
                             </div>
                           )}
@@ -839,7 +839,7 @@ export default function RaceResultPage() {
                           <input type="text" value={entry.note} onChange={(e) => updatePenaltyEntry(entry.key, { note: e.target.value })} style={{ ...inpStyle("100%"), width: "100%" }} />
                         </div>
 
-                        <button onClick={() => removePenaltyEntry(entry.key)} style={{ marginTop: "20px", padding: "6px 10px", backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>
+                        <button onClick={() => removePenaltyEntry(entry.key)} style={{ marginTop: "20px", padding: "6px 10px", backgroundColor: "rgba(220,38,38,0.15)", color: "#fca5a5", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>
                           削除
                         </button>
                       </div>
@@ -857,7 +857,7 @@ export default function RaceResultPage() {
               const unassigned = activeBoats.filter((b) => !assignedIds.has(b.id));
               if (unassigned.length === 0) return null;
               return (
-                <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "8px", padding: "12px 16px", fontSize: "13px", color: "#92400e", marginBottom: "20px" }}>
+                <div style={{ backgroundColor: "rgba(245,158,11,0.12)", border: "1px solid #fcd34d", borderRadius: "8px", padding: "12px 16px", fontSize: "13px", color: "#fcd34d", marginBottom: "20px" }}>
                   ⚠️ 未入力の艇が {unassigned.length} 艇あります: {unassigned.map((b) => b.sail_number).join(", ")}
                 </div>
               );
@@ -869,7 +869,7 @@ export default function RaceResultPage() {
           /* ======= Tab 2: per-boat entry ======= */
           <div>
             {hasBoatWarnings && (
-              <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", fontSize: "13px", color: "#dc2626" }}>
+              <div style={{ backgroundColor: "rgba(220,38,38,0.15)", border: "1px solid #fca5a5", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", fontSize: "13px", color: "#fca5a5" }}>
                 {dupBoatPositions.size > 0 && (
                   <p style={{ margin: "0 0 4px 0" }}>
                     ⚠️ 着順が重複しています: {Array.from(dupBoatPositions).sort((a, b) => a - b).map((p) => `${p}位`).join(", ")}
@@ -895,7 +895,7 @@ export default function RaceResultPage() {
                       const needsPos   = NEEDS_FINISH_POS.has(row.result_code);
                       const isManual   = MANUAL_CODES.has(row.result_code);
                       const isOk       = row.result_code === "OK";
-                      const rowBg      = index % 2 === 0 ? WHITE : "#fafbfc";
+                      const rowBg      = index % 2 === 0 ? T.surface : T.surface2;
                       const fpNum      = Number(row.finish_position);
                       const isDupPos   = needsPos && !isManual && !!row.finish_position && dupBoatPositions.has(fpNum);
                       const isMissPos  = missingPosRows.has(index);
@@ -915,9 +915,9 @@ export default function RaceResultPage() {
                                   value={row.finish_position}
                                   disabled={!needsPos || isManual}
                                   onChange={(e) => updateBoatRow(index, "finish_position", e.target.value)}
-                                  style={{ padding: "6px 8px", border: `1px solid ${isDupPos ? "#dc2626" : isMissPos ? "#f97316" : (!needsPos || isManual) ? "#e2e8f0" : "#94adc8"}`, borderRadius: "6px", width: "68px", fontSize: "14px", backgroundColor: (!needsPos || isManual) ? "#f1f5f9" : WHITE, color: (!needsPos || isManual) ? MUTED : TEXT, outline: "none" }}
+                                  style={{ padding: "6px 8px", border: `1px solid ${isDupPos ? "#dc2626" : isMissPos ? "#f97316" : (!needsPos || isManual) ? T.surface2 : "#94adc8"}`, borderRadius: "6px", width: "68px", fontSize: "14px", backgroundColor: (!needsPos || isManual) ? T.surface2 : T.surface2, color: (!needsPos || isManual) ? MUTED : TEXT, outline: "none" }}
                                 />
-                                {isOk && <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: "600", padding: "3px 8px", borderRadius: "4px", backgroundColor: "#f0fdf4" }}>OK</span>}
+                                {isOk && <span style={{ fontSize: "11px", color: "#86efac", fontWeight: "600", padding: "3px 8px", borderRadius: "4px", backgroundColor: "rgba(34,197,94,0.18)" }}>OK</span>}
                               </div>
                               <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                                 {ROW1_CODES.map((code) => (
@@ -932,7 +932,7 @@ export default function RaceResultPage() {
                               {customCodes.length > 0 && (
                                 <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                                   {customCodes.map((code) => (
-                                    <button key={code} type="button" onClick={() => updateBoatRow(index, "result_code", row.result_code === code ? "OK" : code)} style={{ ...codeBtn(row.result_code === code), backgroundColor: row.result_code === code ? "#7c3aed" : "#f5f3ff", borderColor: row.result_code === code ? "#7c3aed" : "#c4b5fd", color: row.result_code === code ? WHITE : "#7c3aed" }}>{code}</button>
+                                    <button key={code} type="button" onClick={() => updateBoatRow(index, "result_code", row.result_code === code ? "OK" : code)} style={{ ...codeBtn(row.result_code === code), backgroundColor: row.result_code === code ? "#7c3aed" : "rgba(124,58,237,0.20)", borderColor: row.result_code === code ? "#7c3aed" : "#c4b5fd", color: row.result_code === code ? WHITE : "#7c3aed" }}>{code}</button>
                                   ))}
                                 </div>
                               )}
@@ -948,7 +948,7 @@ export default function RaceResultPage() {
                             )}
                           </td>
                           <td style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER}` }}>
-                            <input type="text" value={row.note} onChange={(e) => updateBoatRow(index, "note", e.target.value)} style={{ padding: "7px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", width: "100%", fontSize: "13px", outline: "none", backgroundColor: WHITE }} />
+                            <input type="text" value={row.note} onChange={(e) => updateBoatRow(index, "note", e.target.value)} style={{ padding: "7px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", width: "100%", fontSize: "13px", outline: "none", backgroundColor: T.surface2 }} />
                           </td>
                         </tr>
                       );

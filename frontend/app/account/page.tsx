@@ -1,4 +1,5 @@
 "use client";
+import { T } from "@/lib/theme";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -7,11 +8,11 @@ import { createClient } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 
 const IS_LOCAL = process.env.NEXT_PUBLIC_MODE === "local";
-const NAV    = "#1F4E78";
-const BORDER = "#e2e8f0";
-const WHITE  = "#ffffff";
-const TEXT   = "#1a2332";
-const MUTED  = "#64748b";
+const NAV    = T.accent;
+const BORDER = T.border;
+const WHITE  = T.white;
+const TEXT   = T.text;
+const MUTED  = T.muted;
 const INPUT_STYLE: React.CSSProperties = {
   padding: "10px 12px",
   border: `1px solid ${BORDER}`,
@@ -19,11 +20,11 @@ const INPUT_STYLE: React.CSSProperties = {
   fontSize: "14px",
   width: "100%",
   outline: "none",
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   boxSizing: "border-box",
 };
 const CARD: React.CSSProperties = {
-  backgroundColor: WHITE,
+  backgroundColor: T.surface,
   border: `1px solid ${BORDER}`,
   borderRadius: "12px",
   padding: "24px",
@@ -158,7 +159,7 @@ export default function AccountPage() {
 
       {IS_LOCAL && (
         <div style={{
-          backgroundColor: "#fff7ed", border: "1px solid #fed7aa",
+          backgroundColor: "rgba(249,115,22,0.12)", border: "1px solid #fed7aa",
           borderRadius: "10px", padding: "14px 18px", marginBottom: "20px",
           fontSize: "13px", color: "#9a3412",
         }}>
@@ -187,7 +188,7 @@ export default function AccountPage() {
               <div style={{ fontSize: "11px", fontWeight: "600", color: MUTED, marginBottom: "3px" }}>権限</div>
               <span style={{
                 display: "inline-block",
-                backgroundColor: role === "admin" ? "#dbeafe" : "#f1f5f9",
+                backgroundColor: role === "admin" ? "rgba(37,99,235,0.22)" : T.surface2,
                 color: role === "admin" ? "#1d4ed8" : MUTED,
                 fontSize: "12px", fontWeight: "700", padding: "2px 10px", borderRadius: "4px",
               }}>
@@ -216,8 +217,8 @@ export default function AccountPage() {
             disabled={IS_LOCAL}
             style={{ ...INPUT_STYLE, marginBottom: "12px", opacity: IS_LOCAL ? 0.5 : 1 }}
           />
-          {nameErr && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "10px" }}>{nameErr}</p>}
-          {nameMsg && <p style={{ color: "#0e6657", fontSize: "13px", marginBottom: "10px" }}>{nameMsg}</p>}
+          {nameErr && <p style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "10px" }}>{nameErr}</p>}
+          {nameMsg && <p style={{ color: "#5eead4", fontSize: "13px", marginBottom: "10px" }}>{nameMsg}</p>}
           <SaveButton saving={nameSaving} disabled={IS_LOCAL} label="表示名を保存" savingLabel="保存中..." />
         </form>
       </div>
@@ -240,8 +241,8 @@ export default function AccountPage() {
             disabled={IS_LOCAL}
             style={{ ...INPUT_STYLE, marginBottom: "12px", opacity: IS_LOCAL ? 0.5 : 1 }}
           />
-          {emailErr && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "10px" }}>{emailErr}</p>}
-          {emailMsg && <p style={{ color: "#0e6657", fontSize: "13px", marginBottom: "10px" }}>{emailMsg}</p>}
+          {emailErr && <p style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "10px" }}>{emailErr}</p>}
+          {emailMsg && <p style={{ color: "#5eead4", fontSize: "13px", marginBottom: "10px" }}>{emailMsg}</p>}
           <SaveButton saving={emailSaving} disabled={IS_LOCAL} label="確認メールを送信" savingLabel="送信中..." />
         </form>
       </div>
@@ -275,8 +276,8 @@ export default function AccountPage() {
               style={{ ...INPUT_STYLE, opacity: IS_LOCAL ? 0.5 : 1 }}
             />
           </div>
-          {pwErr && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "10px" }}>{pwErr}</p>}
-          {pwMsg && <p style={{ color: "#0e6657", fontSize: "13px", marginBottom: "10px" }}>{pwMsg}</p>}
+          {pwErr && <p style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "10px" }}>{pwErr}</p>}
+          {pwMsg && <p style={{ color: "#5eead4", fontSize: "13px", marginBottom: "10px" }}>{pwMsg}</p>}
           <SaveButton saving={pwSaving} disabled={IS_LOCAL} label="パスワードを変更" savingLabel="変更中..." />
         </form>
       </div>

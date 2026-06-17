@@ -601,12 +601,12 @@ export default function StandingsPage() {
           flexWrap: "wrap",
         }}
       >
-        <h1 style={{ fontSize: "22px", fontWeight: "700", color: TEXT_COLOR, margin: 0 }}>
+        <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#e8edf5", margin: 0 }}>
           総合順位
         </h1>
         <div className="no-print" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
           {/* 更新ステータス */}
-          <span style={{ fontSize: "12px", color: error ? "#dc2626" : MUTED_COLOR, whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "12px", color: error ? "#fca5a5" : "#94a3b8", whiteSpace: "nowrap" }}>
             {refreshing
               ? "更新中…"
               : error
