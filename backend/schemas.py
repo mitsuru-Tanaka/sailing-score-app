@@ -366,9 +366,38 @@ class UserOut(BaseModel):
     id: str
     email: str
     role: str
+    live_reporter: bool = False
 
     class Config:
         from_attributes = True
+
+
+# --- 速報（途中経過） ---
+
+class LiveReportUpsert(BaseModel):
+    boat_class: str | None = None   # 470 / SNIPE / None
+    race_number: int
+    stage: str                      # 例: 1上 / 2上 / finish
+    boat_ids: list[int] = []        # 回航順の boat_id
+    note: str | None = None
+
+
+class LiveReportPosition(BaseModel):
+    rank: int
+    boat_id: int
+    sail_number: str
+    team_name: str | None = None
+
+
+class LiveReportOut(BaseModel):
+    id: int
+    tournament_id: int
+    boat_class: str | None = None
+    race_number: int
+    stage: str
+    positions: list[LiveReportPosition] = []
+    note: str | None = None
+    updated_at: str | None = None
 
 
 class InviteRequest(BaseModel):

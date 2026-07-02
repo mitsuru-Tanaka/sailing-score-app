@@ -135,9 +135,21 @@ cd frontend && npm run build
 | `c9d6759` | ヘルプ・使い方ガイドページ（`/help`）を追加 |
 
 ### 既知のTODO（未対応・任意）
-- 大会内ページ上部ナビ `TournamentNav`（[frontend/app/components/TournamentNav.tsx](frontend/app/components/TournamentNav.tsx)）が**まだライトテーマ**のまま。ダーク化は未対応。
-- `backend/main.py` が約2,600行の単一ファイル。ルーター分割でメンテ性向上の余地あり。
+- `backend/main.py` が約2,700行の単一ファイル。ルーター分割でメンテ性向上の余地あり。
 - 順位計算がリクエストごとの全件計算。データ量が増えるとキャッシュ最適化の検討余地あり。
+
+## ⑦-2 2026-07-02 の変更（速報機能ほか）
+
+- `TournamentNav` をダークテーマ対応（TODO解消）。
+- **管理タブは admin のみ表示**（TopBar が `/auth/me` のロールを見て制御。`frontend/lib/me.ts` に sessionStorage キャッシュ付きの getMe() を追加）。
+- **速報（途中経過）機能を追加**:
+  - `users.live_reporter` カラム追加。管理者ページの「速報担当」トグルでON/OFF（`PUT /admin/users/{id}/live-reporter`）。
+  - 大会内タブ「速報」（`/tournaments/[id]/live`）は admin または速報担当のみ表示・アクセス可。
+  - 1上・2上・3上・finish・任意地点の回航順位を艇タップで入力 → `live_reports` テーブルに保存（同一クラス/レース/地点は上書き）。SNS用テキストのコピー機能付き。
+  - API: `GET/PUT /tournaments/{id}/live-reports`, `DELETE /tournaments/{id}/live-reports/{report_id}`。
+  - 速報担当は全大会の閲覧（一覧・艇・レース）が可能（`check_tournament_access(allow_live_reporter=True)`）。
+- バグ修正: `_MIGRATIONS` に `rule_configs` のペナルティ係数5カラム（stp_penalty_points 等）が欠けており、既存DBで大会作成が500になる問題を修正。
+- バグ修正: 大会の完全削除で `series` / `ranking_profiles` / `live_reports` が削除されずFK違反になる問題を修正。
 
 ---
 

@@ -28,6 +28,7 @@ class _DevUser:
     id: str = "dev-user-id"
     email: str = "dev@localhost"
     role: str = "admin"
+    live_reporter: bool = True
 
 
 security = HTTPBearer(auto_error=False)
@@ -76,10 +77,23 @@ def require_admin(user=Depends(get_current_user)):
     return user
 
 
-def check_tournament_access(tournament_id: int, user, db: Session, owner_only: bool = False):
+def require_live_reporter(user=Depends(get_current_user)):
+    """速報の入力・閲覧は admin または管理者が指定した速報担当のみ。"""
+    if user.role != "admin" and not getattr(user, "live_reporter", False):
+        raise HTTPException(status_code=403, detail="速報担当の権限が必要です")
+    return user
+
+
+def check_tournament_access(
+    tournament_id: int, user, db: Session,
+    owner_only: bool = False, allow_live_reporter: bool = False,
+):
     """admin は常にアクセス可。それ以外は tournament_members に登録が必要。
-    owner_only=True の場合は owner ロールのみ許可。"""
+    owner_only=True の場合は owner ロールのみ許可。
+    allow_live_reporter=True の場合は速報担当も許可（閲覧系エンドポイント用）。"""
     if user.role == "admin":
+        return
+    if allow_live_reporter and not owner_only and getattr(user, "live_reporter", False):
         return
     from models import TournamentMember
     member = db.query(TournamentMember).filter(

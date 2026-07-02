@@ -1,5 +1,6 @@
 import os
 import math
+import json
 from datetime import datetime, timezone
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -16,7 +17,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 
 from db import Base, engine, get_db
-from models import Tournament, Boat, RuleConfig, Race, RaceResult, Series, RankingProfile, User, TournamentMember
+from models import Tournament, Boat, RuleConfig, Race, RaceResult, Series, RankingProfile, User, TournamentMember, LiveReport
 from schemas import (
     TournamentCreate,
     TournamentUpdate,
@@ -43,8 +44,11 @@ from schemas import (
     InviteResponse,
     TournamentMemberOut,
     AddMemberRequest,
+    LiveReportUpsert,
+    LiveReportPosition,
+    LiveReportOut,
 )
-from auth import get_current_user, require_admin, check_tournament_access, get_supabase, AUTH_ENABLED
+from auth import get_current_user, require_admin, require_live_reporter, check_tournament_access, get_supabase, AUTH_ENABLED
 
 try:
     Base.metadata.create_all(bind=engine)
@@ -88,6 +92,12 @@ _MIGRATIONS = [
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS fleet_split BOOLEAN NOT NULL DEFAULT false",
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS fleet_split_method TEXT NOT NULL DEFAULT 'own'",
     "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS preset_template TEXT NOT NULL DEFAULT 'custom'",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS stp_penalty_points DOUBLE PRECISION NOT NULL DEFAULT 3.0",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS scp_multiplier DOUBLE PRECISION NOT NULL DEFAULT 1.3",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS arb_multiplier DOUBLE PRECISION NOT NULL DEFAULT 1.3",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS prp_multiplier DOUBLE PRECISION NOT NULL DEFAULT 1.3",
+    "ALTER TABLE rule_configs ADD COLUMN IF NOT EXISTS zfp_multiplier DOUBLE PRECISION NOT NULL DEFAULT 1.2",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS live_reporter BOOLEAN NOT NULL DEFAULT false",
 ]
 
 for _sql in _MIGRATIONS:
@@ -1426,7 +1436,8 @@ def get_current_user_info(current_user=Depends(get_current_user)):
 
 @app.get("/tournaments", response_model=list[TournamentOut])
 def get_tournaments(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    if current_user.role == "admin":
+    # admin と速報担当は全大会を閲覧できる（速報担当は速報入力先の大会を選ぶ必要があるため）
+    if current_user.role == "admin" or getattr(current_user, "live_reporter", False):
         return db.query(Tournament).filter(Tournament.deleted_at == None).all()
     ids = [
         m.tournament_id
@@ -1602,7 +1613,7 @@ def get_boats(tournament_id: int, db: Session = Depends(get_db), current_user=De
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
-    check_tournament_access(tournament_id, current_user, db)
+    check_tournament_access(tournament_id, current_user, db, allow_live_reporter=True)
     return db.query(Boat).filter(Boat.tournament_id == tournament_id).all()
 
 
@@ -1916,7 +1927,7 @@ def get_races(tournament_id: int, db: Session = Depends(get_db), current_user=De
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
-    check_tournament_access(tournament_id, current_user, db)
+    check_tournament_access(tournament_id, current_user, db, allow_live_reporter=True)
     races = (
         db.query(Race)
         .filter(Race.tournament_id == tournament_id)
@@ -2436,7 +2447,7 @@ def get_tournament(tournament_id: int, db: Session = Depends(get_db), current_us
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
-    check_tournament_access(tournament_id, current_user, db)
+    check_tournament_access(tournament_id, current_user, db, allow_live_reporter=True)
     return tournament
 
 
@@ -2514,6 +2525,9 @@ def permanently_delete_tournament(
     db.query(Boat).filter(Boat.tournament_id == tournament_id).delete()
     db.query(TournamentMember).filter(TournamentMember.tournament_id == tournament_id).delete()
     db.query(RuleConfig).filter(RuleConfig.tournament_id == tournament_id).delete()
+    db.query(LiveReport).filter(LiveReport.tournament_id == tournament_id).delete()
+    db.query(RankingProfile).filter(RankingProfile.tournament_id == tournament_id).delete()
+    db.query(Series).filter(Series.tournament_id == tournament_id).delete()
     db.delete(tournament)
     db.commit()
 
@@ -2638,3 +2652,123 @@ def add_tournament_member(
         db.add(TournamentMember(tournament_id=tournament_id, user_id=user_id))
         db.commit()
     return {"message": "追加しました"}
+
+
+@app.put("/admin/users/{user_id}/live-reporter")
+def toggle_live_reporter(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    """速報担当のON/OFFを切り替える（管理者のみ）"""
+    target = db.query(User).filter(User.id == user_id).first()
+    if target is None:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
+
+    target.live_reporter = not bool(target.live_reporter)
+    db.commit()
+    return {"id": target.id, "email": target.email, "live_reporter": target.live_reporter}
+
+
+# ─── 速報（途中経過）エンドポイント ────────────────────────────────────────
+
+def _live_report_out(report: LiveReport, db: Session) -> LiveReportOut:
+    boat_ids: list[int] = json.loads(report.positions or "[]")
+    boats = (
+        {b.id: b for b in db.query(Boat).filter(Boat.id.in_(boat_ids)).all()}
+        if boat_ids else {}
+    )
+    positions = []
+    rank = 0
+    for bid in boat_ids:
+        boat = boats.get(bid)
+        if boat is None:
+            continue  # 削除された艇はスキップ
+        rank += 1
+        positions.append(LiveReportPosition(
+            rank=rank,
+            boat_id=bid,
+            sail_number=boat.sail_number,
+            team_name=boat.team_name or boat.organization_name,
+        ))
+    return LiveReportOut(
+        id=report.id,
+        tournament_id=report.tournament_id,
+        boat_class=report.boat_class,
+        race_number=report.race_number,
+        stage=report.stage,
+        positions=positions,
+        note=report.note,
+        updated_at=report.updated_at.isoformat() if report.updated_at else None,
+    )
+
+
+@app.get("/tournaments/{tournament_id}/live-reports", response_model=list[LiveReportOut])
+def list_live_reports(
+    tournament_id: int,
+    race_number: int | None = None,
+    boat_class: str | None = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_live_reporter),
+):
+    """速報一覧（admin または速報担当のみ）"""
+    q = db.query(LiveReport).filter(LiveReport.tournament_id == tournament_id)
+    if race_number is not None:
+        q = q.filter(LiveReport.race_number == race_number)
+    if boat_class is not None:
+        q = q.filter(LiveReport.boat_class == boat_class)
+    reports = q.order_by(LiveReport.race_number, LiveReport.id).all()
+    return [_live_report_out(r, db) for r in reports]
+
+
+@app.put("/tournaments/{tournament_id}/live-reports", response_model=LiveReportOut)
+def upsert_live_report(
+    tournament_id: int,
+    body: LiveReportUpsert,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_live_reporter),
+):
+    """速報の保存。同じ (クラス, レース, 地点) があれば上書きする。"""
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="大会が見つかりません")
+    if not body.stage.strip():
+        raise HTTPException(status_code=400, detail="地点（1上・finishなど）を指定してください")
+
+    report = db.query(LiveReport).filter(
+        LiveReport.tournament_id == tournament_id,
+        LiveReport.boat_class == body.boat_class,
+        LiveReport.race_number == body.race_number,
+        LiveReport.stage == body.stage,
+    ).first()
+    if report is None:
+        report = LiveReport(
+            tournament_id=tournament_id,
+            boat_class=body.boat_class,
+            race_number=body.race_number,
+            stage=body.stage,
+        )
+        db.add(report)
+    report.positions = json.dumps(body.boat_ids)
+    report.note = body.note
+    report.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(report)
+    return _live_report_out(report, db)
+
+
+@app.delete("/tournaments/{tournament_id}/live-reports/{report_id}", status_code=204)
+def delete_live_report(
+    tournament_id: int,
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_live_reporter),
+):
+    report = db.query(LiveReport).filter(
+        LiveReport.id == report_id,
+        LiveReport.tournament_id == tournament_id,
+    ).first()
+    if report is None:
+        raise HTTPException(status_code=404, detail="速報が見つかりません")
+    db.delete(report)
+    db.commit()

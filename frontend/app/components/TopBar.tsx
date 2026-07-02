@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { getMe, clearMeCache } from "@/lib/me";
 import { T } from "@/lib/theme";
 
 const IS_LOCAL = process.env.NEXT_PUBLIC_MODE === "local";
@@ -12,6 +13,7 @@ export default function TopBar() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -29,9 +31,19 @@ export default function TopBar() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // 自分のロールを取得（管理タブの表示制御用）
+  useEffect(() => {
+    if (!email) {
+      setRole(null);
+      return;
+    }
+    getMe().then((me) => setRole(me?.role ?? null));
+  }, [email]);
+
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
+    clearMeCache();
     router.push("/login");
     router.refresh();
   }
@@ -122,20 +134,22 @@ export default function TopBar() {
             ヘルプ
           </Link>
 
-          <Link
-            href="/admin"
-            style={{
-              color: T.muted,
-              textDecoration: "none",
-              fontSize: "13px",
-              fontWeight: "500",
-              padding: "4px 8px",
-              borderRadius: "6px",
-              transition: "color 0.15s",
-            }}
-          >
-            管理
-          </Link>
+          {role === "admin" && (
+            <Link
+              href="/admin"
+              style={{
+                color: T.muted,
+                textDecoration: "none",
+                fontSize: "13px",
+                fontWeight: "500",
+                padding: "4px 8px",
+                borderRadius: "6px",
+                transition: "color 0.15s",
+              }}
+            >
+              管理
+            </Link>
+          )}
 
           <Link
             href="/account"

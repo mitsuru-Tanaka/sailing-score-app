@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { getMe } from "@/lib/me";
+import { T } from "@/lib/theme";
 
 type Props = { id: string; name: string };
 
@@ -15,6 +18,17 @@ const TABS = [
 
 export default function TournamentNav({ id, name }: Props) {
   const pathname = usePathname() ?? "";
+  const [canLiveReport, setCanLiveReport] = useState(false);
+
+  useEffect(() => {
+    getMe().then((me) => {
+      setCanLiveReport(me?.role === "admin" || !!me?.live_reporter);
+    });
+  }, []);
+
+  const tabs = canLiveReport
+    ? [...TABS, { label: "速報", suffix: "/live" }]
+    : TABS;
 
   function isActive(suffix: string) {
     const href = `/tournaments/${id}${suffix}`;
@@ -26,8 +40,8 @@ export default function TournamentNav({ id, name }: Props) {
     <nav
       className="no-print"
       style={{
-        backgroundColor: "#ffffff",
-        borderBottom: "1px solid #e2e8f0",
+        backgroundColor: T.surface,
+        borderBottom: `1px solid ${T.border}`,
         position: "sticky",
         top: "52px",
         zIndex: 90,
@@ -47,7 +61,7 @@ export default function TournamentNav({ id, name }: Props) {
         <Link
           href="/"
           style={{
-            color: "#64748b",
+            color: T.muted,
             textDecoration: "none",
             fontSize: "13px",
             padding: "13px 12px 13px 0",
@@ -61,13 +75,13 @@ export default function TournamentNav({ id, name }: Props) {
         </Link>
         <span
           style={{
-            color: "#1a2332",
+            color: T.text,
             fontWeight: "600",
             fontSize: "14px",
             padding: "13px 16px 13px 8px",
             display: "flex",
             alignItems: "center",
-            borderRight: "1px solid #e2e8f0",
+            borderRight: `1px solid ${T.border}`,
             marginRight: "8px",
             whiteSpace: "nowrap",
             maxWidth: "240px",
@@ -77,7 +91,7 @@ export default function TournamentNav({ id, name }: Props) {
         >
           {name || "---"}
         </span>
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <Link
             key={tab.suffix}
             href={`/tournaments/${id}${tab.suffix}`}
@@ -88,9 +102,9 @@ export default function TournamentNav({ id, name }: Props) {
               fontSize: "13px",
               textDecoration: "none",
               whiteSpace: "nowrap",
-              color: isActive(tab.suffix) ? "#1F4E78" : "#64748b",
+              color: isActive(tab.suffix) ? T.accent : T.muted,
               borderBottom: isActive(tab.suffix)
-                ? "2px solid #1F4E78"
+                ? `2px solid ${T.accent}`
                 : "2px solid transparent",
               fontWeight: isActive(tab.suffix) ? "600" : "400",
             }}

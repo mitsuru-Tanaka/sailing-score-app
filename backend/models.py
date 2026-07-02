@@ -10,6 +10,7 @@ class User(Base):
     id = Column(String, primary_key=True)          # Supabase UUID
     email = Column(String, nullable=False, unique=True)
     role = Column(String, nullable=False, default="member")  # admin / member
+    live_reporter = Column(Boolean, nullable=False, default=False)  # 速報入力を許可
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -179,6 +180,20 @@ class Race(Base):
     start_time = Column(String, nullable=True)
     finish_time_top = Column(String, nullable=True)
     finish_time_last = Column(String, nullable=True)
+
+class LiveReport(Base):
+    """速報（途中経過）。レースの 1上・2上・finish などの回航順位を記録する。"""
+    __tablename__ = "live_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), nullable=False, index=True)
+    boat_class = Column(String, nullable=True)      # 470 / SNIPE / None（単一クラス大会）
+    race_number = Column(Integer, nullable=False)
+    stage = Column(String, nullable=False)          # 例: 1上 / 2上 / finish
+    positions = Column(String, nullable=False, default="[]")  # boat_id のJSON配列（回航順）
+    note = Column(String, nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 
 class RaceResult(Base):
     __tablename__ = "race_results"
